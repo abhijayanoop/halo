@@ -1,0 +1,15 @@
+.env
+.env.*
+!.env.example
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/worktrees/
+__pycache__/
+.venv/
+node_modules/
+dist/
+build/
+*.spec.bak
+spikes/models/
+spikes/*.wav
+tests/fixtures/demo_repo/
