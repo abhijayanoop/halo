@@ -1,0 +1,79 @@
+{
+  "additionalProperties": false,
+  "description": "A stored, provenanced memory. `privacy` is copied from the\ndestination note's frontmatter at write/parse time \u2014 the raising check\nin halo/models/client.py that forbids `privacy: local` content from\nreaching a cloud prompt only ever sees MemoryItems, never raw notes.",
+  "properties": {
+    "block_id": {
+      "title": "Block Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "expires_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expires At"
+    },
+    "fact": {
+      "title": "Fact",
+      "type": "string"
+    },
+    "note_path": {
+      "title": "Note Path",
+      "type": "string"
+    },
+    "privacy": {
+      "enum": [
+        "shared",
+        "local"
+      ],
+      "title": "Privacy",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "you",
+        "web",
+        "tool",
+        "agent"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "superseded": {
+      "default": false,
+      "title": "Superseded",
+      "type": "boolean"
+    },
+    "trust": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Trust",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fact",
+    "source",
+    "trust",
+    "created_at",
+    "block_id",
+    "note_path",
+    "privacy"
+  ],
+  "title": "MemoryItem",
+  "type": "object"
+}

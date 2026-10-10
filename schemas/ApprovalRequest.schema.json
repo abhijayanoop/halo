@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "The payload behind an approval.requested event / the HUD's\npermission card. The \"high-risk can never be an always-grant\" rule is\nenforced in halo/security/policy.py, not here \u2014 the request and the\neventual decision are separate payloads that only meet at the policy\nengine.",
+  "properties": {
+    "action": {
+      "title": "Action",
+      "type": "string"
+    },
+    "detail": {
+      "title": "Detail",
+      "type": "string"
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Risk",
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "detail",
+    "risk"
+  ],
+  "title": "ApprovalRequest",
+  "type": "object"
+}

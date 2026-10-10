@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "description": "The POST /approve body that resumes a paused LangGraph node via\nCommand(resume=decision). \"always_for_task\" grants are session-scoped\nonly \u2014 enforced by the policy engine, never persisted to disk.",
+  "properties": {
+    "grant": {
+      "enum": [
+        "allow_once",
+        "deny",
+        "always_for_task"
+      ],
+      "title": "Grant",
+      "type": "string"
+    }
+  },
+  "required": [
+    "grant"
+  ],
+  "title": "ApprovalDecision",
+  "type": "object"
+}

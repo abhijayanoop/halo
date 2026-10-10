@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "description": "A logged expense. SQL computes every total from these \u2014 never a\nmodel \u2014 so this is a pure data record with no computed fields.",
+  "properties": {
+    "amount": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        }
+      ],
+      "title": "Amount"
+    },
+    "category": {
+      "title": "Category",
+      "type": "string"
+    },
+    "confidence": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Confidence"
+    },
+    "currency": {
+      "default": "INR",
+      "title": "Currency",
+      "type": "string"
+    },
+    "date": {
+      "format": "date",
+      "title": "Date",
+      "type": "string"
+    },
+    "merchant": {
+      "title": "Merchant",
+      "type": "string"
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Note"
+    }
+  },
+  "required": [
+    "amount",
+    "category",
+    "merchant",
+    "date"
+  ],
+  "title": "Expense",
+  "type": "object"
+}

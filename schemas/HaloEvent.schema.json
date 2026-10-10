@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "description": "One typed event. Everything the HUD shows and the flight recorder\nsaves is a HaloEvent; UI state is derived only from these.",
+  "properties": {
+    "agent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Agent Id"
+    },
+    "id": {
+      "title": "Id",
+      "type": "string"
+    },
+    "parent_agent_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Agent Id"
+    },
+    "payload": {
+      "additionalProperties": true,
+      "title": "Payload",
+      "type": "object"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    },
+    "ts": {
+      "format": "date-time",
+      "title": "Ts",
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "run.started",
+        "run.finished",
+        "run.failed",
+        "step.started",
+        "step.finished",
+        "agent.spawned",
+        "agent.finished",
+        "tool.called",
+        "tool.result",
+        "approval.requested",
+        "approval.resolved",
+        "memory.proposed",
+        "memory.saved",
+        "memory.forgotten",
+        "egress.sent",
+        "cost.updated",
+        "policy.blocked",
+        "voice.listening",
+        "voice.heard",
+        "mood"
+      ],
+      "title": "Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "run_id",
+    "ts",
+    "type",
+    "title"
+  ],
+  "title": "HaloEvent",
+  "type": "object"
+}

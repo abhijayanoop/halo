@@ -1,0 +1,36 @@
+[project]
+name = "halo"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2.9,<3",
+]
+
+[project.scripts]
+halo = "halo:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.7",
+    "pyright>=1.1.380",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/fixtures"]
+markers = [
+    "live: tests that call a real hosted model; run with -m live",
+]
+
+[tool.pyright]
+exclude = ["tests/fixtures", "spikes"]
+
+[tool.ruff]
+extend-exclude = ["docs"]
+
+[build-system]
+requires = ["uv_build>=0.12.3,<0.13.0"]
+build-backend = "uv_build"

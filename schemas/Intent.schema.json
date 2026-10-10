@@ -1,0 +1,39 @@
+{
+  "additionalProperties": false,
+  "description": "The router's output: which skill, with what arguments, and how\nconfident it is. Confidence < 0.7 escalates Nano to Super.",
+  "properties": {
+    "args": {
+      "additionalProperties": true,
+      "title": "Args",
+      "type": "object"
+    },
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "skill": {
+      "enum": [
+        "chat",
+        "app.open",
+        "code.task",
+        "trip.plan",
+        "expense.log",
+        "expense.query",
+        "memory.remember",
+        "memory.recall",
+        "memory.forget",
+        "work.start"
+      ],
+      "title": "Skill",
+      "type": "string"
+    }
+  },
+  "required": [
+    "skill",
+    "confidence"
+  ],
+  "title": "Intent",
+  "type": "object"
+}

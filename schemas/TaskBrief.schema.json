@@ -1,0 +1,49 @@
+{
+  "additionalProperties": false,
+  "description": "The contract for a coding task: what the worker builds against and\nwhat the reviewer grades against. Shown in the approval card and\neditable there before you approve it.",
+  "properties": {
+    "acceptance_criteria": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Acceptance Criteria",
+      "type": "array"
+    },
+    "constraints": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Constraints",
+      "type": "array"
+    },
+    "goal": {
+      "title": "Goal",
+      "type": "string"
+    },
+    "likely_files": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Likely Files",
+      "type": "array"
+    },
+    "out_of_scope": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Out Of Scope",
+      "type": "array"
+    },
+    "test_cmd": {
+      "title": "Test Cmd",
+      "type": "string"
+    }
+  },
+  "required": [
+    "goal",
+    "acceptance_criteria",
+    "test_cmd"
+  ],
+  "title": "TaskBrief",
+  "type": "object"
+}

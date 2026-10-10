@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "description": "An extracted memory proposal, before approval. Not yet tied to any\nnote, so it carries no `privacy` \u2014 that's decided once a skill picks\nthe destination note and it becomes a MemoryItem.",
+  "properties": {
+    "fact": {
+      "title": "Fact",
+      "type": "string"
+    },
+    "source": {
+      "enum": [
+        "you",
+        "web",
+        "tool",
+        "agent"
+      ],
+      "title": "Source",
+      "type": "string"
+    },
+    "subject": {
+      "title": "Subject",
+      "type": "string"
+    },
+    "trust": {
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "title": "Trust",
+      "type": "string"
+    }
+  },
+  "required": [
+    "fact",
+    "subject",
+    "source",
+    "trust"
+  ],
+  "title": "MemoryCandidate",
+  "type": "object"
+}

@@ -1,0 +1,76 @@
+{
+  "$defs": {
+    "Step": {
+      "additionalProperties": false,
+      "description": "One step of a Plan: a tool call with its arguments and risk tier.",
+      "properties": {
+        "args": {
+          "additionalProperties": true,
+          "title": "Args",
+          "type": "object"
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "title": "Risk",
+          "type": "string"
+        },
+        "tool": {
+          "title": "Tool",
+          "type": "string"
+        }
+      },
+      "required": [
+        "tool",
+        "risk"
+      ],
+      "title": "Step",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "The planner's multi-step output for skills that need one. Single-step\nskills skip planning entirely.",
+  "properties": {
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    },
+    "run_id": {
+      "title": "Run Id",
+      "type": "string"
+    },
+    "skill": {
+      "enum": [
+        "chat",
+        "app.open",
+        "code.task",
+        "trip.plan",
+        "expense.log",
+        "expense.query",
+        "memory.remember",
+        "memory.recall",
+        "memory.forget",
+        "work.start"
+      ],
+      "title": "Skill",
+      "type": "string"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "title": "Steps",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "skill",
+    "rationale"
+  ],
+  "title": "Plan",
+  "type": "object"
+}

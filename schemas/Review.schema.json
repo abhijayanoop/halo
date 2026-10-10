@@ -1,0 +1,31 @@
+{
+  "additionalProperties": false,
+  "description": "A verdict against a TaskBrief's acceptance criteria (or, reused\nas-is, an eval judge's verdict). `summary` always carries a\nplain-language reason, even for an infra-level failure like a worker\ntimeout; `issues` is for itemized review comments.",
+  "properties": {
+    "issues": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "result": {
+      "enum": [
+        "pass",
+        "concerns"
+      ],
+      "title": "Result",
+      "type": "string"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    }
+  },
+  "required": [
+    "result",
+    "summary"
+  ],
+  "title": "Review",
+  "type": "object"
+}

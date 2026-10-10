@@ -1,0 +1,30 @@
+{
+  "additionalProperties": false,
+  "description": "One step of a Plan: a tool call with its arguments and risk tier.",
+  "properties": {
+    "args": {
+      "additionalProperties": true,
+      "title": "Args",
+      "type": "object"
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Risk",
+      "type": "string"
+    },
+    "tool": {
+      "title": "Tool",
+      "type": "string"
+    }
+  },
+  "required": [
+    "tool",
+    "risk"
+  ],
+  "title": "Step",
+  "type": "object"
+}

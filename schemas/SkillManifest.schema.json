@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "description": "Parsed from a skill's SKILL.md frontmatter.",
+  "properties": {
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "risk": {
+      "enum": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "title": "Risk",
+      "type": "string"
+    },
+    "tools": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tools",
+      "type": "array"
+    }
+  },
+  "required": [
+    "name",
+    "description",
+    "risk"
+  ],
+  "title": "SkillManifest",
+  "type": "object"
+}
