@@ -3,22 +3,25 @@ _Last updated: 2026-10-12. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 
 ## Done
 - Day 1: scaffold, frozen contracts + schema export, CI, spikes for ASR, pywebview and claude-agent-sdk (`spikes/RESULTS.md`).
-- Day 2, built and tested offline (201 tests, branch `feat/core-day2`, 6 commits, not yet pushed):
+- Day 2, built and tested (245 offline tests; PR #3 `feat/core-day2` merged to main):
   event bus + ULID events, flight recorder (`~/.halo/runs/*.jsonl`), skill registry + `chat` and `app.open`,
   config loader, model client (retry, backoff, ₹ cost, `privacy: local` guard) + Nano-to-Super cascade,
   state, router, planner, LangGraph graph with approval gate (interrupt/resume, survives restart),
   `HaloRunner`, FastAPI server (`/run`, `/approve`, `WS /events`, localhost-only), `halo` CLI, `open_halo()` wiring.
 
-## In progress: Day 2 verified live on the dev profile; review, push, then Day 3
+## In progress: Day 3 (HUD + character) on branch `feat/hud-day3`; Day 2 was verified live on the dev profile
 Live on `nvidia-api` (Nemotron from NVIDIA's hosted API; Nano stand-in = `nemotron-3.5-lightning-30b-a3b`, Super/Ultra/Omni = Nemotron 3 ids):
 - Tool-calling + JSON-schema spike, 60 calls: 100% valid and correct on all three tiers (10 cases per kind per tier, small sample).
 - Router golden set: passed (>=18/20; the exact score was not printed, ~160 s for 20 requests).
 - Real `uv run halo "open VS Code"`: exit 0 in 8 s, VS Code launched, 11 events recorded and parsed back with 0 validation errors.
 Reviews done (independent `reviewer` + `security-reviewer`); fixed: model-chosen risk, concurrent /approve, Origin scope, weak privacy matching,
 provider text in `run.failed`, config read on the event loop. Remaining before Day 3:
-1. Push `feat/core-day2`, open PR, CI green. Ask before push and before merge.
+1. (Done) PR #3 merged.
 2. Latency: ~2-8 s per Nano call because the models think by default. Try `extra_body` to turn reasoning off (a few calls).
 3. Print the exact router score (make the live test report hits); re-run everything on Token Factory when its key arrives.
+
+## Day 3 stages
+0 housekeeping · 1 approval_id contract + approval backend (BLOCKED until a session runs with HALO_CONTRACT_EDIT=1) · 2 character/mood.py · 3 UI scaffold + reducer · 4 app.py window · 5 mascot/bar/panel · 6 permission card + e2e · 7 character/lines.py · 8 polish + review + PR.
 
 ## Next
 - Day 3: HUD + character (`app.py`, pywebview, React reducer, `character/mood.py`, mascot, permission card). Needs no model.
