@@ -82,6 +82,30 @@ def _money(value: Decimal) -> str:
     return format(value.normalize(), "f")
 
 
+_SHINGLE_WORDS = 4
+_MIN_WHOLE_NOTE_CHARS = 10
+
+
+def _words(text: str) -> str:
+    """Lower-case, with every run of punctuation or whitespace collapsed to one
+    space, so case, line breaks and spacing cannot hide a copied passage."""
+    return " ".join(re.sub(r"\W+", " ", text.casefold()).split())
+
+
+def _protected_chunks(note: str) -> set[str]:
+    """What must not appear in a cloud prompt: every run of four consecutive words
+    of the note (so an excerpt or a single copied line is caught), or the whole
+    note if it is shorter than that but not trivially short."""
+    words = _words(note).split()
+    if len(words) >= _SHINGLE_WORDS:
+        return {
+            " ".join(words[i : i + _SHINGLE_WORDS])
+            for i in range(len(words) - _SHINGLE_WORDS + 1)
+        }
+    whole = " ".join(words)
+    return {whole} if len(whole) >= _MIN_WHOLE_NOTE_CHARS else set()
+
+
 def _message_text(message: dict[str, Any]) -> str:
     content = message.get("content")
     if isinstance(content, str):
@@ -217,9 +241,9 @@ class ModelClient:
             )
         if self._local_texts is None:
             return
-        prompt = "\n".join(_message_text(m) for m in messages).casefold()
+        padded = f" {_words('\n'.join(_message_text(m) for m in messages))} "
         for text in self._local_texts():
-            if text.strip() and text.casefold() in prompt:
+            if any(f" {chunk} " in padded for chunk in _protected_chunks(text)):
                 raise PrivacyViolationError(
                     "text from a privacy: local note is in the prompt"
                 )
