@@ -136,3 +136,39 @@ def open_runner(tmp_path: Path, make_client, monkeypatch: pytest.MonkeyPatch):
             yield HaloRunner(graph, events.append), events, transport, spawned
 
     return opener
+
+
+@pytest.fixture
+def halo_cm_factory(tmp_path: Path, make_client, monkeypatch: pytest.MonkeyPatch):
+    """Returns `factory(*script, home=None)` giving a zero-arg callable that opens
+    a fully wired Halo (bus, recorder, checkpointer, runner) over a fake model.
+    App launches are recorded in `factory.spawned`, never executed."""
+    from halo.bootstrap import open_halo
+    from halo.config import load_config
+    from halo.skills.registry import SkillRegistry, default_skills_dir
+
+    config_path = tmp_path / "config.toml"
+    config_path.write_text(VSCODE_CONFIG)
+    monkeypatch.setenv("HALO_CONFIG", str(config_path))
+    spawned: list[list[str]] = []
+
+    def factory(*script, home: Path | None = None):
+        registry = SkillRegistry.load(default_skills_dir())
+
+        async def fake_spawn(argv: list[str]) -> None:
+            spawned.append(argv)
+
+        monkeypatch.setattr(registry.get("app.open").module, "_spawn", fake_spawn)
+
+        def client_factory(emit):
+            return make_client(*script, emit=emit)[0]
+
+        return lambda: open_halo(
+            load_config(),
+            home=home or tmp_path / "halo-home",
+            client_factory=client_factory,
+            registry=registry,
+        )
+
+    factory.spawned = spawned  # type: ignore[attr-defined]
+    return factory
