@@ -1,0 +1,13 @@
+# Halo defaults. Copy to ~/.halo/config.toml to customise; that file replaces
+# this one entirely.
+
+# Apps Halo may open without asking. Anything not listed here asks first.
+# `command` is keyed by sys.platform and is run as an argument list, never
+# through a shell.
+[apps.vscode]
+aliases = ["vs code", "vscode", "visual studio code", "code"]
+
+[apps.vscode.command]
+win32 = ["code"]
+darwin = ["open", "-a", "Visual Studio Code"]
+linux = ["code"]
