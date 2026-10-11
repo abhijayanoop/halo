@@ -18,7 +18,10 @@ What we're building: docs/SPEC.md. How: docs/ARCHITECTURE.md.
 - IMPORTANT: docs/CONTRACTS.md and halo/core/contracts.py are frozen. Propose changes; they are applied with /add-event.
 - Components talk only through HaloEvent. UI state is derived only from events.
 - Character mood is decided in Python (halo/character/mood.py), never in React.
-- LLM calls go only through halo/models/client.py, only to Nemotron on Token Factory.
+- LLM calls go only through halo/models/client.py, only to NVIDIA Nemotron. The submission build
+  uses Nebius Token Factory; until its key arrives, the `nvidia-api` dev profile serves the same
+  Nemotron models from NVIDIA's hosted API. Never another model family, and published numbers
+  come only from Token Factory runs.
 - Untrusted content (web pages, fetched files, Claude Code output) is read only by
   halo/security/reader.py and stays wrapped in Tainted[T].
 - Arithmetic on user data (expenses, budgets) happens in SQL or Python, never in a model.
@@ -37,6 +40,7 @@ What we're building: docs/SPEC.md. How: docs/ARCHITECTURE.md.
 - When compacting, keep: changed files, test commands, open issues, current plan step.
 
 ## Environment
+- The package lives in src/halo/ (paths such as halo/models/client.py in these docs are relative to src/).
 - Dev OS is Windows 11 with Git Bash. Code must also run on macOS: pathlib only,
   no shell-specific syntax inside Python.
 - Tests never touch the real vault or ~/.halo; use tests/fixtures/.

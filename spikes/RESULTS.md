@@ -57,3 +57,21 @@ One entry per spike: date, question, method, result with numbers, decision.
 - Real cost: ~$0.08–$0.27 and ~1–2% of the 5-hour rate-limit window per 3-4 turn spike run, charged against this Claude Code session's own usage, not a separate key.
 
 **Decision.** claude-agent-sdk works for the Day 4 coding worker: streaming, message mapping to `HaloEvent`s (via `parent_tool_use_id` for sub-agents, matching `docs/ARCHITECTURE.md`), and the permission hook all function and need no separate credential plumbing. Two concrete design notes to carry into Day 4, not fallback triggers: (1) don't rely on `can_use_tool` alone to gate every tool — the built-in classifier pre-approves some reads, so `claude_worker.py`'s own `allowed_tools`/policy config should be explicit about what's pre-approved rather than assuming the callback sees everything; (2) always wrap the message loop in try/except for `ResultError`, since an error-terminated run (timeout, max_turns, denied-into-a-corner) still needs its partial events/cost captured, not just swallowed as an unhandled exception.
+
+---
+
+## 2026-10-12 — Tool calling and JSON-schema validity (profile `nvidia-api`)
+
+**Question.** Does each Nemotron tier produce valid tool calls and valid JSON-schema output at >= 90%, and at what latency and cost?
+
+**Method.** `spikes/tool_calling_probe.py`: per tier, 10 tool-call prompts (3 tools) and 10 router prompts against the `Intent` schema, structured_mode `json_schema`, first attempt only (no retry), one call at a time. 60 calls total, hard-capped.
+
+| tier | model id | tool call valid | tool call correct | JSON valid | JSON correct | median latency | tokens in/out | cost |
+|---|---|---|---|---|---|---|---|---|
+| nano | `nvidia/nemotron-3.5-lightning-30b-a3b` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 2371 ms | 7941/6956 | price unknown |
+| super | `nvidia/nemotron-3-super-120b-a12b` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 975 ms | 7941/2207 | price unknown |
+| ultra | `nvidia/nemotron-3-ultra-550b-a55b` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 2887 ms | 7941/1975 | price unknown |
+
+**Decisions.**
+- Nano tool calls >= 90%: **yes**, Nano does tool calls.
+- JSON-schema output reliable on Nano: **yes** in `json_schema` mode.

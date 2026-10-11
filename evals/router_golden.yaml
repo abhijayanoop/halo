@@ -1,0 +1,53 @@
+# Router golden set: 20 utterances and the skill each should route to.
+# `ambiguous: true` marks requests that plausibly fit more than one skill; the
+# expected skill is the best reading, not the only defensible one.
+# Run against live Nano with: uv run pytest -m live tests/core/test_router_golden.py
+
+# --- clear cases (15) ---
+- utterance: "open VS Code"
+  skill: app.open
+- utterance: "launch Spotify"
+  skill: app.open
+- utterance: "hey, how's it going?"
+  skill: chat
+- utterance: "what's the difference between a mutex and a semaphore?"
+  skill: chat
+- utterance: "add rate limiting to the webhook endpoint"
+  skill: code.task
+- utterance: "fix the failing migration test in the halo repo"
+  skill: code.task
+- utterance: "plan a 4-day Goa trip in December under budget"
+  skill: trip.plan
+- utterance: "find me a cheap weekend getaway near Pune"
+  skill: trip.plan
+- utterance: "spent 450 on lunch at Cafe X"
+  skill: expense.log
+- utterance: "log 1200 for the auto to the airport"
+  skill: expense.log
+- utterance: "how much did I spend on food this month?"
+  skill: expense.query
+- utterance: "remember that I picked pywebview for the HUD window"
+  skill: memory.remember
+- utterance: "what did I pick for the HUD window?"
+  skill: memory.recall
+- utterance: "forget what I said about my gym day"
+  skill: memory.forget
+- utterance: "let's get to work"
+  skill: work.start
+
+# --- ambiguous cases (5) ---
+- utterance: "open the Goa trip note"
+  skill: memory.recall
+  ambiguous: true # could be app.open
+- utterance: "what did I spend on lunch yesterday?"
+  skill: expense.query
+  ambiguous: true # could be memory.recall
+- utterance: "what should I work on today?"
+  skill: work.start
+  ambiguous: true # could be chat
+- utterance: "can you look at the webhook handler?"
+  skill: code.task
+  ambiguous: true # could be chat
+- utterance: "I keep forgetting my gym day is Tuesday"
+  skill: memory.remember
+  ambiguous: true # could be chat

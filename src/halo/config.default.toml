@@ -1,0 +1,65 @@
+# Halo defaults. Copy to ~/.halo/config.toml to customise; that file replaces
+# this one entirely.
+
+# Approximate exchange rate used to show costs in rupees. Update as needed.
+usd_to_inr = 85
+
+# Which model-access profile to use. Override per run with HALO_PROFILE
+# (for example HALO_PROFILE=nvidia-api in .env while developing).
+profile = "token-factory"
+
+# Apps Halo may open without asking. Anything not listed here asks first.
+# `command` is keyed by sys.platform and is run as an argument list, never
+# through a shell.
+[apps.vscode]
+aliases = ["vs code", "vscode", "visual studio code", "code"]
+
+[apps.vscode.command]
+win32 = ["code"]
+darwin = ["open", "-a", "Visual Studio Code"]
+linux = ["code"]
+
+# --- Model access ------------------------------------------------------
+# Every model is NVIDIA Nemotron. The API key is read from the environment
+# variable named by `key_env` (put it in .env, never in this file). Ids that
+# start with "UNSET" make the client refuse to call. Prices are USD per million
+# tokens; leave them out until known and costs are flagged as not known.
+
+# The submission target: Nemotron on Nebius Token Factory. Only runs on this
+# profile produce published numbers.
+[profiles.token-factory.api]
+base_url = "UNSET-copy-the-base-url-from-the-token-factory-docs"
+key_env = "NEBIUS_API_KEY"
+
+[profiles.token-factory.models.nano]
+id = "UNSET-nano-model-id"
+
+[profiles.token-factory.models.super]
+id = "UNSET-super-model-id"
+
+[profiles.token-factory.models.ultra]
+id = "UNSET-ultra-model-id"
+
+[profiles.token-factory.models.omni]
+id = "UNSET-nano-omni-model-id"
+
+# Development stand-in: the same Nemotron family from NVIDIA's hosted API
+# (build.nvidia.com), OpenAI-compatible. Fill the ids from its model list once
+# you have a key; `uv run python spikes/list_models.py` prints them.
+[profiles.nvidia-api.api]
+base_url = "https://integrate.api.nvidia.com/v1"
+key_env = "NVIDIA_API_KEY"
+
+# nvidia/nemotron-nano-3-30b-a3b is listed but returns 404 for our account, so the
+# same-size 3.5 Lightning model stands in for Nano during development.
+[profiles.nvidia-api.models.nano]
+id = "nvidia/nemotron-3.5-lightning-30b-a3b"
+
+[profiles.nvidia-api.models.super]
+id = "nvidia/nemotron-3-super-120b-a12b"
+
+[profiles.nvidia-api.models.ultra]
+id = "nvidia/nemotron-3-ultra-550b-a55b"
+
+[profiles.nvidia-api.models.omni]
+id = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
