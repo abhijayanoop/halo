@@ -10,14 +10,15 @@ _Last updated: 2026-10-12. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
   `HaloRunner`, FastAPI server (`/run`, `/approve`, `WS /events`, localhost-only), `halo` CLI, `open_halo()` wiring.
 
 ## In progress: finish Day 2 for real, then push, then Day 3
-Blocked on a live endpoint. Plan (tests first, ask before any live call; live calls capped at ~90 total):
-1. Provider profiles: config `profile` (`nvidia-api` dev, `token-factory` final), per-profile base URL / key var / model ids;
-   structured-output mode (`json_schema` | `json_object` | `prompt`); strip `<think>` / read `reasoning_content`.
-2. Spike harness `spikes/tool_calling_probe.py` with a hard call cap; dry-run against the fake transport first.
-3. LIVE (needs a key): list models, 3-call smoke test, tool-calling + JSON-schema spike (Nano, Super, Ultra),
-   record numbers + decisions in `spikes/RESULTS.md`, embeddings check.
-4. LIVE: router golden set (needs ≥18/20; user reviews the 5 ambiguous labels first), then real `uv run halo "open VS Code"`.
-5. Review (`reviewer`, `security-reviewer`), fix findings, push `feat/core-day2`, PR, CI green. Ask before push/merge.
+Built offline and committed: provider profiles (`token-factory` default, `nvidia-api` dev via `HALO_PROFILE`), structured-output
+modes, `<think>` stripping, `spikes/list_models.py`, `spikes/tool_calling_probe.py` (hard call cap, refuses live without `--yes`).
+Remaining, in order (ask before every live call; ~90 calls total):
+1. Get a key: `NVIDIA_API_KEY` in `.env` (build.nvidia.com) and `HALO_PROFILE=nvidia-api`.
+2. `uv run python spikes/list_models.py` (free) -> fill the four `UNSET` ids of `[profiles.nvidia-api]`; add prices if known.
+3. Smoke test: `uv run python spikes/tool_calling_probe.py --tiers nano --n 1 --max-calls 2 --yes`; tune `structured_mode` / `extra_body` if needed.
+4. Spike: `uv run python spikes/tool_calling_probe.py --yes --write` (60 calls) + embeddings check; record decisions.
+5. Router golden set live (>=18/20; user reviews the 5 ambiguous labels first), then real `uv run halo "open VS Code"`.
+6. Review (`reviewer`, `security-reviewer`), fix findings, push `feat/core-day2`, PR, CI green. Ask before push/merge.
 
 ## Next
 - Day 3: HUD + character (`app.py`, pywebview, React reducer, `character/mood.py`, mascot, permission card). Needs no model.
