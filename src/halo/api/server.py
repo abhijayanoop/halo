@@ -2,15 +2,19 @@
 
 It listens on localhost only and refuses requests whose Host or Origin is not
 local, so a web page open in the user's browser cannot start runs, approve
-actions or read events.
+actions or read events. /run, /approve and /events also need the per-launch
+token, so another program on this machine cannot use them either.
 """
 
 import asyncio
 import contextlib
-from collections.abc import AsyncIterator, Awaitable, Callable
+import os
+import secrets
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from contextlib import AbstractAsyncContextManager, asynccontextmanager
+from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from pydantic import BaseModel, field_validator
@@ -23,6 +27,10 @@ from halo.core.events import new_event_id
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 # The Vite dev server the HUD is developed against.
 UI_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
+TOKEN_HEADER = "x-halo-token"
+TOKEN_ENV = "HALO_API_TOKEN"
+# Everything that acts on, or reveals, a run. /health and the UI's own files stay open.
+PROTECTED_PATHS = {"/run", "/approve", "/events"}
 
 
 class RunBody(BaseModel):
@@ -46,8 +54,9 @@ class LocalOnlyMiddleware:
     """Pure ASGI so it covers WebSockets too. A missing Origin (curl, the CLI,
     scripts) is fine; a present one must be local, because browsers always send it."""
 
-    def __init__(self, app: ASGIApp) -> None:
+    def __init__(self, app: ASGIApp, token: str | None = None) -> None:
         self.app = app
+        self.token = token
 
     @staticmethod
     def _is_local(value: str | None) -> bool:
@@ -78,26 +87,62 @@ class LocalOnlyMiddleware:
         origin = headers.get("origin")
         origin_ok = origin is None or self._origin_allowed(origin, host)
         if not (self._is_local(host) and origin_ok):
-            if scope["type"] == "websocket":
-                await receive()  # the connect message
-                await send({"type": "websocket.close", "code": 1008})
-            else:
-                body = b"forbidden"
-                await send(
-                    {
-                        "type": "http.response.start",
-                        "status": 403,
-                        "headers": [(b"content-type", b"text/plain")],
-                    }
-                )
-                await send({"type": "http.response.body", "body": body})
+            await self._refuse(scope, receive, send, 403, b"forbidden")
+            return
+        if not self._token_ok(scope, headers):
+            await self._refuse(scope, receive, send, 401, b"unauthorized")
             return
         await self.app(scope, receive, send)
+
+    def _token_ok(self, scope: Scope, headers: dict[str, str]) -> bool:
+        if self.token is None or scope["path"] not in PROTECTED_PATHS:
+            return True
+        if scope["type"] == "websocket":  # browsers cannot set WS headers
+            query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+            given = (query.get("token") or [""])[0]
+        else:
+            given = headers.get(TOKEN_HEADER, "")
+        return secrets.compare_digest(given.encode(), self.token.encode())
+
+    @staticmethod
+    async def _refuse(
+        scope: Scope, receive: Receive, send: Send, status: int, body: bytes
+    ) -> None:
+        if scope["type"] == "websocket":
+            await receive()  # the connect message
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": [(b"content-type", b"text/plain")],
+            }
+        )
+        await send({"type": "http.response.body", "body": body})
+
+
+def resolve_token(home: Path, env: Mapping[str, str] | None = None) -> str:
+    """The token for this launch: $HALO_API_TOKEN if set, otherwise a fresh random
+    one, written to <home>/api-token so a dev UI can read it."""
+    env = os.environ if env is None else env
+    if given := env.get(TOKEN_ENV):
+        return given
+    token = secrets.token_urlsafe(32)
+    home.mkdir(parents=True, exist_ok=True)
+    path = home / "api-token"
+    path.write_text(token, encoding="utf-8")
+    path.chmod(0o600)
+    return token
 
 
 def create_app(
     open_halo_cm: Callable[[], AbstractAsyncContextManager[Halo]],
+    *,
+    token: str | None = None,
 ) -> FastAPI:
+    """`token=None` turns the token check off; only tests do that. serve()
+    always passes one."""
     tasks: set[asyncio.Task[Any]] = set()
     resuming: set[str] = set()
 
@@ -116,7 +161,7 @@ def create_app(
             await asyncio.gather(*tasks, return_exceptions=True)
 
     app = FastAPI(title="Halo", lifespan=lifespan)
-    app.add_middleware(LocalOnlyMiddleware)
+    app.add_middleware(LocalOnlyMiddleware, token=token)
 
     @app.get("/health")
     async def health() -> dict[str, bool]:
@@ -202,12 +247,14 @@ def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     """Run the API (used by the desktop app and `python -m halo.api.server`)."""
     import uvicorn
 
-    from halo.bootstrap import open_halo
+    from halo.bootstrap import default_home, open_halo
     from halo.config import load_config, load_env
 
     load_env()
     config = load_config()
-    uvicorn.run(create_app(lambda: open_halo(config)), host=host, port=port)
+    token = resolve_token(default_home())
+    app = create_app(lambda: open_halo(config), token=token)
+    uvicorn.run(app, host=host, port=port)
 
 
 if __name__ == "__main__":
