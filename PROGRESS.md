@@ -14,12 +14,11 @@ Live on `nvidia-api` (Nemotron from NVIDIA's hosted API; Nano stand-in = `nemotr
 - Tool-calling + JSON-schema spike, 60 calls: 100% valid and correct on all three tiers (10 cases per kind per tier, small sample).
 - Router golden set: passed (>=18/20; the exact score was not printed, ~160 s for 20 requests).
 - Real `uv run halo "open VS Code"`: exit 0 in 8 s, VS Code launched, 11 events recorded and parsed back with 0 validation errors.
-Remaining:
-1. Reviews running (`reviewer`, `security-reviewer`); fix findings.
-2. Push `feat/core-day2`, open PR, CI green. Ask before push and before merge.
-3. Latency: ~2-8 s per Nano call because the models think by default. Try `extra_body` to turn reasoning off (cheap test, a few calls).
-4. Embeddings: `nvidia/nemotron-3-embed-1b` exists on the NVIDIA API; availability on Token Factory unknown. Decide later (else local `fastembed`).
-5. Print the exact router score (make the live test report hits) and re-run on Token Factory when its key arrives.
+Reviews done (independent `reviewer` + `security-reviewer`); fixed: model-chosen risk, concurrent /approve, Origin scope, weak privacy matching,
+provider text in `run.failed`, config read on the event loop. Remaining before Day 3:
+1. Push `feat/core-day2`, open PR, CI green. Ask before push and before merge.
+2. Latency: ~2-8 s per Nano call because the models think by default. Try `extra_body` to turn reasoning off (a few calls).
+3. Print the exact router score (make the live test report hits); re-run everything on Token Factory when its key arrives.
 
 ## Next
 - Day 3: HUD + character (`app.py`, pywebview, React reducer, `character/mood.py`, mascot, permission card). Needs no model.
@@ -27,6 +26,12 @@ Remaining:
 - Re-run the live spike, router eval and cascade table on Token Factory when its key arrives; only those numbers are published.
 
 ## Known issues
+- Open decision: bind each approval to the step the user saw (an approval id in `approval.requested`, required by `/approve`), so a stale or
+  repeated click cannot approve the next step. Needs a new required field on `/approve`, so existing server tests change; do with the permission card.
+- Approved launch of a non-allowlisted app (e.g. Spotify) is not built: `app.open` returns `needs_approval`, the run ends `error`. Build it with the
+  permission card (Day 3) using a validated app name, no shell, and an approval flag set by the executor, never by model args.
+- The local API has no per-launch auth token; add one when the HUD connects (Day 3). Event queues are unbounded.
+- The `privacy: local` guard is not wired yet: `open_halo` passes no `local_texts` (there is no vault yet). Wire it, failing closed, with memory (Day 4 of PLAN).
 - Only Nemotron on NVIDIA's API has been exercised; Token Factory (the submission target) is untested until its key arrives.
 - Approved launch of a non-allowlisted app (e.g. Spotify) is not built: `app.open` returns `needs_approval` and the run ends in `error`.
   Needs a safe launch path (a model-supplied name must never reach a Windows shell).
