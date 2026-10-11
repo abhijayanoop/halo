@@ -41,6 +41,9 @@ _SYSTEM = (
     "request fits more than one skill or is unclear. Use chat only when no other skill fits."
 )
 
+# Args that just repeat the user's words are filled in by code, not trusted to the model.
+_ECHO_ARG = {"chat": "message", "expense.log": "text", "expense.query": "text"}
+
 _WORK_START_PHRASES = {"lets get to work", "lets get started"}
 
 
@@ -68,4 +71,8 @@ async def route(
         Intent,
         run_id=run_id,
     )
-    return result.parsed
+    intent = result.parsed
+    key = _ECHO_ARG.get(intent.skill)
+    if key and not str(intent.args.get(key, "")).strip():
+        intent = intent.model_copy(update={"args": {**intent.args, key: request}})
+    return intent

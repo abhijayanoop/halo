@@ -93,3 +93,31 @@ async def test_total_outage_raises(make_client) -> None:
     client, _, _ = make_client(*[TransientModelError("503")] * 8)
     with pytest.raises(ModelUnavailableError):
         await route(client, "hi")
+
+
+async def test_chat_message_is_filled_from_the_request_when_the_model_omits_it(
+    make_client,
+) -> None:
+    client, _, _ = make_client(reply(_intent("chat")))
+    intent = await route(client, "hello there")
+    assert intent.args == {"message": "hello there"}
+
+
+async def test_expense_text_is_filled_from_the_request(make_client) -> None:
+    client, _, _ = make_client(
+        reply(_intent("expense.log")), reply(_intent("expense.query"))
+    )
+    assert (await route(client, "spent 450 on lunch")).args == {
+        "text": "spent 450 on lunch"
+    }
+    assert (await route(client, "food this month?")).args == {
+        "text": "food this month?"
+    }
+
+
+async def test_args_the_model_did_give_are_kept(make_client) -> None:
+    client, _, _ = make_client(
+        reply(_intent("chat", args='{"message": "model words"}'))
+    )
+    intent = await route(client, "hello there")
+    assert intent.args == {"message": "model words"}

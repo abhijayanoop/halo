@@ -129,3 +129,12 @@ async def test_planning_cost_is_tagged_with_the_run(make_client, registry) -> No
     intent = Intent(skill="trip.plan", args={}, confidence=0.9)
     await make_plan(client, registry, "run5", "x", intent)
     assert [(e.type, e.run_id) for e in events] == [("cost.updated", "run5")]
+
+
+async def test_bad_args_do_not_stop_planning_the_skill_reports_them_later(
+    make_client, registry
+) -> None:
+    client, _, _ = make_client()
+    intent = Intent(skill="app.open", args={}, confidence=0.9)
+    plan = await make_plan(client, registry, "r", "open", intent)
+    assert plan.steps[0].risk == "low"  # the skill manifest's own risk

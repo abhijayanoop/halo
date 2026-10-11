@@ -1,3 +1,6 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 import pytest
 
 from halo.core.contracts import HaloEvent
@@ -87,3 +90,49 @@ def make_client():
         return client, transport, sleeps
 
     return build
+
+
+VSCODE_CONFIG = """
+[apps.vscode]
+aliases = ["vs code", "vscode"]
+
+[apps.vscode.command]
+win32 = ["code"]
+darwin = ["open", "-a", "Visual Studio Code"]
+linux = ["code"]
+"""
+
+
+@pytest.fixture
+def open_runner(tmp_path: Path, make_client, monkeypatch: pytest.MonkeyPatch):
+    """Open a HaloRunner over a fake model and a real SQLite checkpointer.
+
+    Returns an async context manager yielding (runner, events, transport,
+    spawned). `spawned` records app launches; nothing is really started.
+    """
+    from halo.core.graph import GraphDeps, build_graph, open_checkpointer
+    from halo.core.runner import HaloRunner
+    from halo.skills.registry import SkillRegistry, default_skills_dir
+
+    config = tmp_path / "config.toml"
+    config.write_text(VSCODE_CONFIG)
+    monkeypatch.setenv("HALO_CONFIG", str(config))
+
+    @asynccontextmanager
+    async def opener(*script, db: Path | None = None, registry=None):
+        events: list = []
+        client, transport, _ = make_client(*script, emit=events.append)
+        registry = registry or SkillRegistry.load(default_skills_dir())
+        spawned: list[list[str]] = []
+
+        async def fake_spawn(argv: list[str]) -> None:
+            spawned.append(argv)
+
+        monkeypatch.setattr(registry.get("app.open").module, "_spawn", fake_spawn)
+        async with open_checkpointer(db or tmp_path / "checkpoints.db") as checkpointer:
+            graph = build_graph(
+                GraphDeps(client, registry, events.append), checkpointer
+            )
+            yield HaloRunner(graph, events.append), events, transport, spawned
+
+    return opener

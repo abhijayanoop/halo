@@ -39,7 +39,10 @@ def _direct_plan(registry: SkillRegistry, run_id: str, intent: Intent) -> Plan:
     risk: RiskLevel = loaded.manifest.risk
     assess = getattr(loaded.module, "assess_risk", None)
     if assess is not None:
-        risk = assess(intent.args)
+        try:
+            risk = assess(intent.args)
+        except ValueError:
+            pass  # bad args: keep the manifest risk; the skill reports the error when run
     return Plan(
         run_id=run_id,
         skill=intent.skill,

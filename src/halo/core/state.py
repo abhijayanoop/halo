@@ -15,6 +15,11 @@ class HaloState(TypedDict):
     results: Annotated[list[dict[str, Any]], operator.add]
     pending_approval: ApprovalRequest | None
     messages: Annotated[list[dict[str, Any]], operator.add]
+    # Executor bookkeeping: which plan step is next, whether the gate cleared
+    # it, and the tools the user granted "always for this task".
+    step_index: int
+    approved: bool
+    granted_tools: list[str]
 
 
 def initial_state(run_id: str, request: str) -> HaloState:
@@ -26,4 +31,7 @@ def initial_state(run_id: str, request: str) -> HaloState:
         results=[],
         pending_approval=None,
         messages=[],
+        step_index=0,
+        approved=False,
+        granted_tools=[],
     )
