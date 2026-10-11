@@ -6,6 +6,10 @@
       "title": "Action",
       "type": "string"
     },
+    "approval_id": {
+      "title": "Approval Id",
+      "type": "string"
+    },
     "detail": {
       "title": "Detail",
       "type": "string"
@@ -21,6 +25,7 @@
     }
   },
   "required": [
+    "approval_id",
     "action",
     "detail",
     "risk"

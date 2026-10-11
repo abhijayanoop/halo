@@ -22,6 +22,10 @@ RunState = Literal["finished", "paused", "failed"]
 ResultStatus = Literal["ok", "denied", "error"]
 
 
+class ApprovalMismatch(ValueError):
+    """The decision answers a different approval than the one now pending."""
+
+
 @dataclass
 class RunOutcome:
     run_id: str
@@ -85,14 +89,19 @@ class HaloRunner:
         return await self._drive(run_id, initial_state(run_id, request))
 
     async def resume(self, run_id: str, decision: ApprovalDecision) -> RunOutcome:
-        if await self.pending_approval(run_id) is None:
+        pending = await self.pending_approval(run_id)
+        if pending is None:
             raise ValueError(f"run {run_id} is not waiting for approval")
+        if decision.approval_id != pending.approval_id:
+            raise ApprovalMismatch(
+                f"run {run_id} is waiting on a different approval than the one answered"
+            )
         self._emit(
             make_event(
                 run_id,
                 "approval.resolved",
                 "Decision received",
-                payload={"grant": decision.grant},
+                payload={"grant": decision.grant, "approval_id": pending.approval_id},
             )
         )
         return await self._drive(run_id, Command(resume=decision.grant))

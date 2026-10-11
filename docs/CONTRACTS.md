@@ -30,10 +30,10 @@ An extracted memory proposal awaiting approval (`fact`, `subject`, `source`, `tr
 A logged expense: `amount` (as `Decimal`, never `float`, to avoid rounding drift before SQL computes totals), `currency`, `category`, `merchant`, `date`, an optional `note`, and an optional `confidence` (populated only on the Nano-Omni receipt-photo path). Arithmetic on these happens in SQL — never in a model.
 
 ### ApprovalRequest
-The payload behind an `approval.requested` event and the HUD's permission card: a human-readable `action`, the exact `detail` (command or diff summary), and a `risk` tier. **"High risk can never be satisfied by an always-grant" is enforced in `halo/security/policy.py`, not here** — the request and the eventual decision are separate payloads that only meet at the policy engine, so there's nothing to validate against on this model alone.
+The payload behind an `approval.requested` event and the HUD's permission card: an `approval_id` (a ULID the gate generates per step and stores in the checkpoint), a human-readable `action`, the exact `detail` (command or diff summary), and a `risk` tier. **"High risk can never be satisfied by an always-grant" is enforced in `halo/security/policy.py`, not here** — the request and the eventual decision are separate payloads that only meet at the policy engine, so there's nothing to validate against on this model alone.
 
 ### ApprovalDecision
-The `POST /approve` body that resumes a paused LangGraph node via `Command(resume=decision)`: one field, `grant` (`allow_once`/`deny`/`always_for_task`). `always_for_task` grants are session-scoped only, enforced by the policy engine — never persisted to disk.
+The `POST /approve` body that resumes a paused LangGraph node via `Command(resume=decision)`: two fields: `approval_id`, which must equal the pending request's id (a stale, repeated or wrong-step answer is refused: `ApprovalMismatch` in the runner, HTTP 409 on `/approve`), and `grant` (`allow_once`/`deny`/`always_for_task`). `always_for_task` grants are session-scoped only, enforced by the policy engine — never persisted to disk.
 
 ### SkillManifest
 Parsed from a skill's `SKILL.md` frontmatter: `name`, `description`, `tools`, `risk`.

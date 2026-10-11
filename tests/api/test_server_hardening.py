@@ -44,7 +44,13 @@ async def test_two_simultaneous_approvals_resume_the_run_only_once(
                 break
             await asyncio.sleep(0.05)
 
-        body = {"run_id": run_id, "grant": "allow_once"}
+        pending = await halo.runner.pending_approval(run_id)
+        assert pending is not None
+        body = {
+            "run_id": run_id,
+            "approval_id": pending.approval_id,
+            "grant": "allow_once",
+        }
         first, second = await asyncio.gather(
             client.post("/approve", json=body), client.post("/approve", json=body)
         )

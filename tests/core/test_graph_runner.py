@@ -5,7 +5,7 @@ import warnings
 import pytest
 from conftest import reply
 
-from halo.core.contracts import ApprovalDecision
+from halo.core.contracts import ApprovalDecision, ApprovalGrant
 from halo.models.transport import TransientModelError
 
 
@@ -20,6 +20,15 @@ def _plan(*steps: tuple[str, str, dict]) -> str:
             "rationale": "test plan",
             "steps": [{"tool": t, "risk": r, "args": a} for t, r, a in steps],
         }
+    )
+
+
+async def _answer(runner, run_id: str, grant: ApprovalGrant):
+    """Answer whatever approval the run is waiting on, as the card would."""
+    pending = await runner.pending_approval(run_id)
+    assert pending is not None
+    return await runner.resume(
+        run_id, ApprovalDecision(approval_id=pending.approval_id, grant=grant)
     )
 
 
@@ -99,7 +108,7 @@ async def test_allow_once_resumes_the_paused_run(open_runner) -> None:
         *_,
     ):
         await runner.run("open Spotify", run_id="run3")
-        outcome = await runner.resume("run3", ApprovalDecision(grant="allow_once"))
+        outcome = await _answer(runner, "run3", "allow_once")
 
         assert outcome.state == "finished"
         types = _types(events)
@@ -119,7 +128,7 @@ async def test_deny_ends_the_run_without_running_the_tool(open_runner) -> None:
         spawned,
     ):
         await runner.run("open Spotify", run_id="run4")
-        outcome = await runner.resume("run4", ApprovalDecision(grant="deny"))
+        outcome = await _answer(runner, "run4", "deny")
 
     assert outcome.state == "finished"
     assert outcome.result_status == "denied"
@@ -143,7 +152,7 @@ async def test_always_for_task_skips_asking_again_for_the_same_medium_tool(
     ):
         first = await runner.run("do the thing", run_id="run5")
         assert first.state == "paused"
-        done = await runner.resume("run5", ApprovalDecision(grant="always_for_task"))
+        done = await _answer(runner, "run5", "always_for_task")
 
     assert done.state == "finished"
     assert _types(events).count("approval.requested") == 1
@@ -161,10 +170,10 @@ async def test_always_for_task_never_covers_a_high_risk_step(open_runner) -> Non
         spawned,
     ):
         await runner.run("do the thing", run_id="run6")
-        second = await runner.resume("run6", ApprovalDecision(grant="always_for_task"))
+        second = await _answer(runner, "run6", "always_for_task")
         assert second.state == "paused"
         assert len(spawned) == 1
-        await runner.resume("run6", ApprovalDecision(grant="allow_once"))
+        await _answer(runner, "run6", "allow_once")
 
     assert _types(events).count("approval.requested") == 2
     assert len(spawned) == 2
@@ -238,7 +247,7 @@ async def test_a_paused_run_survives_a_restart(open_runner, tmp_path) -> None:
     # A brand-new runner, graph and checkpointer connection over the same file.
     async with open_runner(db=db) as (runner, events, _, _):
         assert (await runner.pending_approval("run8")) is not None
-        outcome = await runner.resume("run8", ApprovalDecision(grant="allow_once"))
+        outcome = await _answer(runner, "run8", "allow_once")
     assert outcome.state == "finished"
     assert _types(events)[-1] == "run.finished"
 
@@ -247,9 +256,13 @@ async def test_resuming_a_run_that_is_not_paused_raises(open_runner) -> None:
     async with open_runner(reply(_intent("app.open", "vscode"))) as (runner, *_):
         await runner.run("open vscode", run_id="run9")
         with pytest.raises(ValueError, match="not waiting"):
-            await runner.resume("run9", ApprovalDecision(grant="allow_once"))
+            await runner.resume(
+                "run9", ApprovalDecision(approval_id="x", grant="allow_once")
+            )
         with pytest.raises(ValueError, match="not waiting"):
-            await runner.resume("never-existed", ApprovalDecision(grant="allow_once"))
+            await runner.resume(
+                "never-existed", ApprovalDecision(approval_id="x", grant="allow_once")
+            )
 
 
 async def test_checkpointing_halo_models_raises_no_serialization_warnings(
@@ -259,7 +272,7 @@ async def test_checkpointing_halo_models_raises_no_serialization_warnings(
         warnings.simplefilter("always")
         async with open_runner(reply(_intent("app.open", "Spotify"))) as (runner, *_):
             await runner.run("open Spotify", run_id="run10")
-            await runner.resume("run10", ApprovalDecision(grant="allow_once"))
+            await _answer(runner, "run10", "allow_once")
     messages = [str(w.message) for w in caught] + [
         r.getMessage() for r in caplog.records
     ]
@@ -273,7 +286,7 @@ async def test_every_event_a_run_emits_is_stamped_with_its_run_id(open_runner) -
         *_,
     ):
         await runner.run("open Spotify", run_id="run11")
-        await runner.resume("run11", ApprovalDecision(grant="allow_once"))
+        await _answer(runner, "run11", "allow_once")
     assert {e.run_id for e in events} == {"run11"}
 
 

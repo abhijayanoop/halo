@@ -21,7 +21,7 @@ from langgraph.types import interrupt
 from halo.core.approval import apply_grant, needs_approval
 from halo.core.context import HaloContext
 from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType
-from halo.core.events import make_event
+from halo.core.events import make_event, new_event_id
 from halo.core.planner import make_plan
 from halo.core.router import route
 from halo.core.state import HaloState
@@ -107,7 +107,10 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
             return {"approved": True}
 
         request = ApprovalRequest(
-            action=step.tool, detail=str(step.args), risk=step.risk
+            approval_id=new_event_id(),
+            action=step.tool,
+            detail=str(step.args),
+            risk=step.risk,
         )
         # Nothing observable happens before this line: on resume the node runs again.
         grant = interrupt(

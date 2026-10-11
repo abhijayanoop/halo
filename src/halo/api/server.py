@@ -38,6 +38,7 @@ class RunBody(BaseModel):
 
 class ApproveBody(BaseModel):
     run_id: str
+    approval_id: str
     grant: ApprovalGrant
 
 
@@ -144,11 +145,16 @@ def create_app(
         if pending is None:
             resuming.discard(body.run_id)
             raise not_waiting
+        if body.approval_id != pending.approval_id:
+            # A stale or repeated click: the run keeps waiting for the real answer.
+            resuming.discard(body.run_id)
+            raise HTTPException(409, "that approval is no longer the one pending")
 
         async def resume() -> None:
             try:
                 await halo.runner.resume(
-                    body.run_id, ApprovalDecision(grant=body.grant)
+                    body.run_id,
+                    ApprovalDecision(approval_id=body.approval_id, grant=body.grant),
                 )
             finally:
                 resuming.discard(body.run_id)

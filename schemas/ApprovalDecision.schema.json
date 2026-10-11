@@ -1,7 +1,11 @@
 {
   "additionalProperties": false,
-  "description": "The POST /approve body that resumes a paused LangGraph node via\nCommand(resume=decision). \"always_for_task\" grants are session-scoped\nonly \u2014 enforced by the policy engine, never persisted to disk.",
+  "description": "The POST /approve body that resumes a paused LangGraph node via\nCommand(resume=decision). \"always_for_task\" grants are session-scoped\nonly \u2014 enforced by the policy engine, never persisted to disk. The\napproval_id must match the pending request's, so a stale or repeated click\ncannot approve a later step.",
   "properties": {
+    "approval_id": {
+      "title": "Approval Id",
+      "type": "string"
+    },
     "grant": {
       "enum": [
         "allow_once",
@@ -13,6 +17,7 @@
     }
   },
   "required": [
+    "approval_id",
     "grant"
   ],
   "title": "ApprovalDecision",

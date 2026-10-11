@@ -62,7 +62,12 @@ def test_approval_round_trip_over_http(halo_cm_factory) -> None:
         assert asked["payload"]["risk"] == "medium"
         assert asked["payload"]["action"] == "app.open"
 
-        r = client.post("/approve", json={"run_id": run_id, "grant": "allow_once"})
+        body = {
+            "run_id": run_id,
+            "approval_id": asked["payload"]["approval_id"],
+            "grant": "allow_once",
+        }
+        r = client.post("/approve", json=body)
         assert r.status_code == 200
         rest = _collect(ws, "run.finished")
     assert "approval.resolved" in [e["type"] for e in rest]
@@ -74,15 +79,23 @@ def test_denying_over_http_ends_the_run_as_denied(halo_cm_factory) -> None:
         _ws(client) as ws,
     ):
         run_id = client.post("/run", json={"request": "open Spotify"}).json()["run_id"]
-        _collect(ws, "approval.requested")
-        client.post("/approve", json={"run_id": run_id, "grant": "deny"})
+        asked = _collect(ws, "approval.requested")[-1]
+        deny = {
+            "run_id": run_id,
+            "approval_id": asked["payload"]["approval_id"],
+            "grant": "deny",
+        }
+        client.post("/approve", json=deny)
         done = _collect(ws, "run.finished")[-1]
     assert done["payload"]["status"] == "denied"
 
 
 def test_approving_a_run_that_is_not_waiting_is_a_conflict(halo_cm_factory) -> None:
     with _client(halo_cm_factory) as client:
-        r = client.post("/approve", json={"run_id": "nope", "grant": "allow_once"})
+        r = client.post(
+            "/approve",
+            json={"run_id": "nope", "approval_id": "x", "grant": "allow_once"},
+        )
     assert r.status_code == 409
 
 
@@ -92,8 +105,8 @@ def test_approving_a_run_that_is_not_waiting_is_a_conflict(halo_cm_factory) -> N
         ("/run", {"request": ""}),
         ("/run", {"request": "   "}),
         ("/run", {}),
-        ("/approve", {"run_id": "x", "grant": "sure"}),
-        ("/approve", {"grant": "allow_once"}),
+        ("/approve", {"run_id": "x", "approval_id": "x", "grant": "sure"}),
+        ("/approve", {"approval_id": "x", "grant": "allow_once"}),
     ],
 )
 def test_invalid_bodies_are_rejected(halo_cm_factory, path, body) -> None:
@@ -107,7 +120,7 @@ def test_a_foreign_web_page_cannot_start_runs_or_approve(halo_cm_factory) -> Non
         assert (
             client.post("/run", json={"request": "x"}, headers=evil).status_code == 403
         )
-        approve = {"run_id": "x", "grant": "allow_once"}
+        approve = {"run_id": "x", "approval_id": "x", "grant": "allow_once"}
         assert client.post("/approve", json=approve, headers=evil).status_code == 403
 
 
