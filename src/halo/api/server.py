@@ -21,6 +21,8 @@ from halo.core.contracts import ApprovalDecision, ApprovalGrant
 from halo.core.events import new_event_id
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
+# The Vite dev server the HUD is developed against.
+UI_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
 
 
 class RunBody(BaseModel):
@@ -50,6 +52,20 @@ class LocalOnlyMiddleware:
     def _is_local(value: str | None) -> bool:
         return value is not None and urlsplit(f"//{value}").hostname in LOCAL_HOSTS
 
+    @staticmethod
+    def _origin_allowed(origin: str, host: str | None) -> bool:
+        """The page must be served by this server (same origin) or be the UI dev
+        server. A page from any other local port, e.g. a throwaway `http.server`
+        or a notebook, is refused."""
+        if origin in UI_ORIGINS:
+            return True
+        parts = urlsplit(origin)
+        return (
+            host is not None
+            and parts.scheme in ("http", "https")
+            and parts.netloc.casefold() == host.casefold()
+        )
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
@@ -57,12 +73,10 @@ class LocalOnlyMiddleware:
         headers = {
             k.decode("latin-1"): v.decode("latin-1") for k, v in scope["headers"]
         }
+        host = headers.get("host")
         origin = headers.get("origin")
-        origin_ok = origin is None or (
-            urlsplit(origin).scheme in ("http", "https")
-            and urlsplit(origin).hostname in LOCAL_HOSTS
-        )
-        if not (self._is_local(headers.get("host")) and origin_ok):
+        origin_ok = origin is None or self._origin_allowed(origin, host)
+        if not (self._is_local(host) and origin_ok):
             if scope["type"] == "websocket":
                 await receive()  # the connect message
                 await send({"type": "websocket.close", "code": 1008})
@@ -117,12 +131,19 @@ def create_app(
     @app.post("/approve")
     async def approve(body: ApproveBody, request: Request) -> dict[str, bool]:
         halo: Halo = request.app.state.halo
-        if (
-            body.run_id in resuming
-            or await halo.runner.pending_approval(body.run_id) is None
-        ):
-            raise HTTPException(409, "that run is not waiting for approval")
+        not_waiting = HTTPException(409, "that run is not waiting for approval")
+        if body.run_id in resuming:
+            raise not_waiting
+        # Claim the run before any await, so two simultaneous requests cannot both pass.
         resuming.add(body.run_id)
+        try:
+            pending = await halo.runner.pending_approval(body.run_id)
+        except BaseException:
+            resuming.discard(body.run_id)
+            raise
+        if pending is None:
+            resuming.discard(body.run_id)
+            raise not_waiting
 
         async def resume() -> None:
             try:
@@ -148,15 +169,25 @@ def create_app(
                     await ws.send_text(event.model_dump_json())
 
             pump_task = asyncio.ensure_future(pump())
+            receive_task = asyncio.ensure_future(ws.receive())
             try:
                 while True:
-                    message = await ws.receive()
-                    if message["type"] == "websocket.disconnect":
+                    done, _ = await asyncio.wait(
+                        {pump_task, receive_task}, return_when=asyncio.FIRST_COMPLETED
+                    )
+                    if (
+                        pump_task in done
+                    ):  # a send failed: stop instead of idling silently
                         break
+                    if receive_task.result()["type"] == "websocket.disconnect":
+                        break
+                    receive_task = asyncio.ensure_future(ws.receive())
             finally:
-                pump_task.cancel()
-                with contextlib.suppress(asyncio.CancelledError, RuntimeError):
-                    await pump_task
+                for task in (pump_task, receive_task):
+                    task.cancel()
+                await asyncio.gather(pump_task, receive_task, return_exceptions=True)
+                with contextlib.suppress(RuntimeError):
+                    await ws.close()
 
     return app
 
