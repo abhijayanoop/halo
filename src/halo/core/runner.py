@@ -32,6 +32,31 @@ class RunOutcome:
     error: str | None = None
 
 
+def _failure_reason(exc: Exception) -> str:
+    """A fixed plain-language reason per kind of failure. The exception text is
+    logged but never put in an event: events reach the JSONL file and the
+    /events stream, and provider errors can echo request content."""
+    from halo.models.client import (
+        ConfigError,
+        ModelUnavailableError,
+        ModelValidationError,
+        PrivacyViolationError,
+    )
+    from halo.models.transport import ModelRequestError
+
+    if isinstance(exc, ModelUnavailableError):
+        return "Couldn't reach the model service. Try again in a moment."
+    if isinstance(exc, ModelValidationError):
+        return "The model's answer wasn't in the expected format."
+    if isinstance(exc, ModelRequestError):
+        return "The model service rejected the request."
+    if isinstance(exc, ConfigError):
+        return "Model access isn't set up."
+    if isinstance(exc, PrivacyViolationError):
+        return "Blocked: private note text was about to be sent to the cloud."
+    return "Something went wrong while running this request."
+
+
 def _result_status(results: list[dict[str, Any]]) -> ResultStatus:
     statuses = {r["status"] for r in results}
     if "denied" in statuses:
@@ -88,7 +113,7 @@ class HaloRunner:
             result = await self._graph.ainvoke(graph_input, self._config(run_id))
         except Exception as exc:
             logger.exception("run %s failed", run_id)
-            reason = str(exc) or type(exc).__name__
+            reason = _failure_reason(exc)
             self._emit(
                 make_event(
                     run_id,
