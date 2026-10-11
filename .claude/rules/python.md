@@ -1,6 +1,6 @@
 ---
 paths:
-  - "halo/**/*.py"
+  - "src/halo/**/*.py"
   - "evals/**/*.py"
 ---
 # Python rules

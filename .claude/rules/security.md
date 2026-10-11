@@ -1,8 +1,8 @@
 ---
 paths:
-  - "halo/security/**"
-  - "halo/tools/**"
-  - "halo/models/**"
+  - "src/halo/security/**"
+  - "src/halo/tools/**"
+  - "src/halo/models/**"
 ---
 # Security rules
 - Any value derived from untrusted content is Tainted[T] until the Reader's schema has validated it,
