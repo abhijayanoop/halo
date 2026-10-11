@@ -50,8 +50,10 @@ id = "UNSET-nano-omni-model-id"
 base_url = "https://integrate.api.nvidia.com/v1"
 key_env = "NVIDIA_API_KEY"
 
+# nvidia/nemotron-nano-3-30b-a3b is listed but returns 404 for our account, so the
+# same-size 3.5 Lightning model stands in for Nano during development.
 [profiles.nvidia-api.models.nano]
-id = "nvidia/nemotron-nano-3-30b-a3b"
+id = "nvidia/nemotron-3.5-lightning-30b-a3b"
 
 [profiles.nvidia-api.models.super]
 id = "nvidia/nemotron-3-super-120b-a12b"
