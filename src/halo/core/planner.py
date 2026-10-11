@@ -4,12 +4,14 @@ Single-step skills get a one-step plan with no model call. Multi-step skills
 are planned by Super.
 """
 
+import asyncio
 from collections.abc import Sequence
 
 from pydantic import Field
 
 from halo.core.contracts import HaloModel, Intent, Plan, RiskLevel, SkillName, Step
 from halo.models.client import ModelClient
+from halo.skills.errors import SkillArgsError
 from halo.skills.registry import SkillRegistry
 
 MULTI_STEP_SKILLS: set[SkillName] = {"code.task", "trip.plan", "work.start"}
@@ -32,17 +34,38 @@ def needs_plan(skill: SkillName) -> bool:
     return skill in MULTI_STEP_SKILLS
 
 
-def _direct_plan(registry: SkillRegistry, run_id: str, intent: Intent) -> Plan:
-    if intent.skill not in registry:
-        raise PlanError(f"skill '{intent.skill}' is not installed")
-    loaded = registry.get(intent.skill)
+_RISK_ORDER: dict[RiskLevel, int] = {"low": 0, "medium": 1, "high": 2}
+
+
+def _higher(a: RiskLevel, b: RiskLevel) -> RiskLevel:
+    return a if _RISK_ORDER[a] >= _RISK_ORDER[b] else b
+
+
+async def _skill_risk(
+    registry: SkillRegistry, tool: str, args: dict
+) -> RiskLevel | None:
+    """The risk a skill itself assigns to a call: its manifest risk, raised by its
+    own `assess_risk(args)` if it has one. None if `tool` is not a skill. Bad args
+    keep the manifest risk (the skill reports the error when it runs); a broken
+    configuration is not hidden."""
+    if tool not in registry:
+        return None
+    loaded = registry.get(tool)
     risk: RiskLevel = loaded.manifest.risk
     assess = getattr(loaded.module, "assess_risk", None)
     if assess is not None:
         try:
-            risk = assess(intent.args)
-        except ValueError:
-            pass  # bad args: keep the manifest risk; the skill reports the error when run
+            # skills may read config from disk, so keep that off the event loop
+            risk = _higher(risk, await asyncio.to_thread(assess, args))
+        except SkillArgsError:
+            pass
+    return risk
+
+
+async def _direct_plan(registry: SkillRegistry, run_id: str, intent: Intent) -> Plan:
+    risk = await _skill_risk(registry, intent.skill, intent.args)
+    if risk is None:
+        raise PlanError(f"skill '{intent.skill}' is not installed")
     return Plan(
         run_id=run_id,
         skill=intent.skill,
@@ -62,7 +85,7 @@ async def make_plan(
     context: str = "",
 ) -> Plan:
     if not needs_plan(intent.skill):
-        return _direct_plan(registry, run_id, intent)
+        return await _direct_plan(registry, run_id, intent)
 
     system = (
         "You are the planner for Halo, a personal desktop assistant. Break the request into "
@@ -90,9 +113,16 @@ async def make_plan(
         unknown = [s.tool for s in planned.steps if s.tool not in available_tools]
         if unknown:
             raise PlanError(f"plan uses tools that do not exist: {', '.join(unknown)}")
+    # The model may raise a step's risk but never lower it: a plan can be steered by
+    # untrusted context, so for real skills the floor comes from the skill itself.
+    steps: list[Step] = []
+    for step in planned.steps:
+        floor = await _skill_risk(registry, step.tool, step.args)
+        risk = step.risk if floor is None else _higher(step.risk, floor)
+        steps.append(step.model_copy(update={"risk": risk}))
     return Plan(
         run_id=run_id,
         skill=intent.skill,
         rationale=planned.rationale,
-        steps=planned.steps,
+        steps=steps,
     )

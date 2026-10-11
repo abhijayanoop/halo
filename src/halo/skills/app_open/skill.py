@@ -12,6 +12,7 @@ import sys
 from halo.config import AppEntry, load_config
 from halo.core.contracts import RiskLevel, RunContext
 from halo.core.events import make_event
+from halo.skills.errors import SkillArgsError
 
 
 def _normalize(name: str) -> str:
@@ -21,7 +22,7 @@ def _normalize(name: str) -> str:
 def _app_name(args: dict) -> str:
     app = args.get("app")
     if not isinstance(app, str) or not app.strip():
-        raise ValueError("app.open needs a non-empty 'app' string")
+        raise SkillArgsError("app.open needs a non-empty 'app' string")
     return app.strip()
 
 
