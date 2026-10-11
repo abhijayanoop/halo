@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from dotenv import load_dotenv
 from pydantic import BaseModel, ValidationError
 
 from halo.config import HaloConfig, ModelSpec, ModelTier
@@ -337,11 +336,13 @@ def build_client(
     emit: Callable[[HaloEvent], None] | None = None,
     local_texts: Callable[[], Iterable[str]] | None = None,
 ) -> ModelClient:
-    """The real client: key from the environment (.env is loaded), endpoint from config."""
-    load_dotenv()
+    """The real client: key from the environment (entry points load .env first), endpoint from config."""
     api_key = os.environ.get(config.api.key_env)
     if not api_key:
-        raise ConfigError(f"set {config.api.key_env} in .env to call Token Factory")
+        raise ConfigError(
+            f"set {config.api.key_env} in .env to call the model API "
+            f"(profile: {config.profile or 'none'})"
+        )
     if not config.api.base_url or config.api.base_url.startswith("UNSET"):
         raise ConfigError("api.base_url is not configured")
     transport = OpenAITransport(

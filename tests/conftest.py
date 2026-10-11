@@ -6,6 +6,13 @@ import pytest
 from halo.core.contracts import HaloEvent
 
 
+@pytest.fixture(autouse=True)
+def _no_ambient_halo_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tests must not depend on the developer's own HALO_* settings."""
+    monkeypatch.delenv("HALO_PROFILE", raising=False)
+    monkeypatch.delenv("HALO_CONFIG", raising=False)
+
+
 class FakeContext:
     """A RunContext that just collects what a skill emits."""
 

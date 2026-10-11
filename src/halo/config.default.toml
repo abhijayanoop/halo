@@ -51,13 +51,13 @@ base_url = "https://integrate.api.nvidia.com/v1"
 key_env = "NVIDIA_API_KEY"
 
 [profiles.nvidia-api.models.nano]
-id = "UNSET-nano-model-id"
+id = "nvidia/nemotron-nano-3-30b-a3b"
 
 [profiles.nvidia-api.models.super]
-id = "UNSET-super-model-id"
+id = "nvidia/nemotron-3-super-120b-a12b"
 
 [profiles.nvidia-api.models.ultra]
-id = "UNSET-ultra-model-id"
+id = "nvidia/nemotron-3-ultra-550b-a55b"
 
 [profiles.nvidia-api.models.omni]
-id = "UNSET-nano-omni-model-id"
+id = "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning"
