@@ -140,7 +140,9 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         if step.tool not in deps.registry:
             result: dict[str, Any] = {"error": f"no tool named '{step.tool}'"}
         else:
-            ctx = HaloContext(state["run_id"], deps.emit, deps.model)
+            ctx = HaloContext(
+                state["run_id"], deps.emit, deps.model, approved=state["approved"]
+            )
             try:
                 result = await deps.registry.get(step.tool).module.run(ctx, step.args)
             except ValueError as exc:  # bad arguments from the model are a step error
