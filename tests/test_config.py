@@ -49,3 +49,15 @@ def test_unknown_top_level_keys_are_rejected(tmp_path: Path) -> None:
     path.write_text("surprise = 1\n")
     with pytest.raises(ValueError):
         load_config(path)
+
+
+def test_packaged_defaults_define_every_model_tier(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("HALO_CONFIG", raising=False)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    config = load_config()
+    assert set(config.models) == {"nano", "super", "ultra", "omni"}
+    assert config.usd_to_inr > 0
+    assert config.api.key_env == "NEBIUS_API_KEY"

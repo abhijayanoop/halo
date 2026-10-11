@@ -1,6 +1,9 @@
 # Halo defaults. Copy to ~/.halo/config.toml to customise; that file replaces
 # this one entirely.
 
+# Approximate exchange rate used to show costs in rupees. Update as needed.
+usd_to_inr = 85
+
 # Apps Halo may open without asking. Anything not listed here asks first.
 # `command` is keyed by sys.platform and is run as an argument list, never
 # through a shell.
@@ -11,3 +14,25 @@ aliases = ["vs code", "vscode", "visual studio code", "code"]
 win32 = ["code"]
 darwin = ["open", "-a", "Visual Studio Code"]
 linux = ["code"]
+
+# --- Model access ------------------------------------------------------
+# All model calls go to Nemotron on Nebius Token Factory. The API key is read
+# from the environment variable below (put it in .env, never in this file).
+[api]
+base_url = "UNSET-copy-the-base-url-from-the-token-factory-docs"
+key_env = "NEBIUS_API_KEY"
+
+# Model ids and prices come from the Token Factory catalogue. Ids starting with
+# "UNSET" make the client refuse to call. Prices are USD per million tokens;
+# leave them out until known and costs are flagged as not known.
+[models.nano]
+id = "UNSET-nano-model-id"
+
+[models.super]
+id = "UNSET-super-model-id"
+
+[models.ultra]
+id = "UNSET-ultra-model-id"
+
+[models.omni]
+id = "UNSET-nano-omni-model-id"
