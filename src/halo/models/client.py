@@ -344,7 +344,12 @@ def build_client(
         raise ConfigError(f"set {config.api.key_env} in .env to call Token Factory")
     if not config.api.base_url or config.api.base_url.startswith("UNSET"):
         raise ConfigError("api.base_url is not configured")
-    transport = OpenAITransport(base_url=config.api.base_url, api_key=api_key)
+    transport = OpenAITransport(
+        base_url=config.api.base_url,
+        api_key=api_key,
+        structured_mode=config.api.structured_mode,
+        extra_body=config.api.extra_body,
+    )
     return ModelClient(config, transport, emit=emit, local_texts=local_texts)
 
 

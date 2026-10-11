@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.text import Text
 
 from halo.bootstrap import Halo, open_halo
-from halo.config import load_config
+from halo.config import load_config, load_env
 from halo.core.contracts import (
     ApprovalDecision,
     ApprovalGrant,
@@ -104,6 +104,7 @@ def main(argv: list[str] | None = None) -> int:
     if not argv:
         console.print(USAGE, soft_wrap=True)
         return 2
+    load_env()
     config = load_config()
     try:
         return asyncio.run(

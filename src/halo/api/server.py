@@ -166,8 +166,9 @@ def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     import uvicorn
 
     from halo.bootstrap import open_halo
-    from halo.config import load_config
+    from halo.config import load_config, load_env
 
+    load_env()
     config = load_config()
     uvicorn.run(create_app(lambda: open_halo(config)), host=host, port=port)
 
