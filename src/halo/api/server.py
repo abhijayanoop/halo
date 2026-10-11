@@ -33,6 +33,12 @@ TOKEN_ENV = "HALO_API_TOKEN"
 PROTECTED_PATHS = {"/run", "/approve", "/events"}
 
 
+def _retrieve(task: asyncio.Future[Any]) -> None:
+    """Done-callback: mark a finished helper task's outcome as seen."""
+    if not task.cancelled():
+        task.exception()
+
+
 class RunBody(BaseModel):
     request: str
 
@@ -234,9 +240,14 @@ def create_app(
                         break
                     receive_task = asyncio.ensure_future(ws.receive())
             finally:
+                # Cancel the two helper tasks but do not await them here. Parked in
+                # an await while this handler is itself being cancelled (a client
+                # reconnect, a server shutdown), anyio re-delivers the cancel, the
+                # task's cancel count reaches 2 and a CancelledError leaks out.
+                # The done-callback still retrieves each task's result.
                 for task in (pump_task, receive_task):
+                    task.add_done_callback(_retrieve)
                     task.cancel()
-                await asyncio.gather(pump_task, receive_task, return_exceptions=True)
                 with contextlib.suppress(RuntimeError):
                     await ws.close()
 
