@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from halo.api.events import EventBus
+from halo.character.director import MoodDirector
 from halo.config import HaloConfig
 from halo.core.contracts import HaloEvent
 from halo.core.graph import GraphDeps, build_graph, open_checkpointer
@@ -52,6 +53,7 @@ async def open_halo(
     async with (
         open_checkpointer(home / "checkpoints.db") as checkpointer,
         recorder.attached(bus),
+        MoodDirector(bus),
     ):
         graph = build_graph(GraphDeps(client, registry, bus.publish), checkpointer)
         yield Halo(bus, HaloRunner(graph, bus.publish), registry)
