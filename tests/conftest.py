@@ -7,8 +7,19 @@ from halo.core.contracts import HaloEvent
 
 
 @pytest.fixture(autouse=True)
-def _no_ambient_halo_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tests must not depend on the developer's own HALO_* settings."""
+def _ambient_halo_settings(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Offline tests must not depend on the developer's own HALO_* settings.
+    Live tests are the opposite: they run against the real `.env` (profile and
+    key), applied through monkeypatch so nothing leaks into other tests."""
+    if request.node.get_closest_marker("live"):
+        from dotenv import dotenv_values, find_dotenv
+
+        for name, value in dotenv_values(find_dotenv(usecwd=True)).items():
+            if value is not None:
+                monkeypatch.setenv(name, value)
+        return
     monkeypatch.delenv("HALO_PROFILE", raising=False)
     monkeypatch.delenv("HALO_CONFIG", raising=False)
 
