@@ -19,7 +19,7 @@ from typing import Self
 
 from halo.api.events import EventBus
 from halo.character.lines import StatusLines, template_line
-from halo.character.mood import MoodEngine
+from halo.character.mood import Mood, MoodEngine
 from halo.core.contracts import HaloEvent
 from halo.core.events import make_event
 
@@ -82,17 +82,21 @@ class MoodDirector:
         self, events: list[HaloEvent], trigger: HaloEvent | None = None
     ) -> None:
         for mood in events:
+            # A mood the dwell held back arrives on a tick: its line is still the
+            # line of the event that asked for it, not a generic one.
+            cause = self._engine.cause(Mood(mood.payload["mood"]))
+            about = cause or trigger
             line = (
-                template_line(trigger)
-                if trigger
+                template_line(about)
+                if about
                 else _MOOD_LINES.get(mood.payload["mood"], "Ready")
             )
             self._bus.publish(
                 mood.model_copy(update={"payload": {**mood.payload, "line": line}})
             )
-            if self._lines and trigger:
+            if self._lines and about:
                 task = asyncio.create_task(
-                    self._refine(trigger, mood, line, self._generation)
+                    self._refine(about, mood, line, self._generation)
                 )
                 self._refining.add(task)
                 task.add_done_callback(self._refining.discard)

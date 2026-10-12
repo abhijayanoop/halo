@@ -446,3 +446,55 @@ def test_a_timed_mood_keeps_its_full_two_seconds_when_the_dwell_delays_it(
 
     clock.advance(0.5)  # 2.0 s after it was shown
     assert moods(engine.tick()) == ["idle"]
+
+
+# --- found in review: Confused/Guarding fade, and cost events are not activity --
+
+
+@pytest.mark.parametrize(
+    ("trigger_type", "mood"),
+    [("run.failed", Mood.CONFUSED), ("policy.blocked", Mood.GUARDING)],
+)
+def test_confused_and_guarding_fade_back_to_idle_after_a_few_seconds(
+    engine: MoodEngine, clock: FakeClock, trigger_type: str, mood: Mood
+) -> None:
+    assert moods(engine.feed(ev(trigger_type))) == [mood.value]
+
+    clock.advance(5.0)
+    assert engine.tick() == []
+    assert engine.current is mood
+
+    clock.advance(1.5)  # 6.5 s on screen
+    assert moods(engine.tick()) == ["idle"]
+
+
+def test_halo_goes_to_sleep_after_a_failure_once_it_has_been_quiet(
+    engine: MoodEngine, clock: FakeClock
+) -> None:
+    engine.feed(ev("run.failed"))
+    clock.advance(7.0)
+    engine.tick()  # Confused -> Idle
+    assert engine.current is Mood.IDLE
+
+    clock.advance(600.0)
+    assert moods(engine.tick()) == ["asleep"]
+
+
+def test_a_cost_update_is_not_activity_and_never_wakes_halo(
+    engine: MoodEngine, clock: FakeClock
+) -> None:
+    clock.advance(600.0)
+    engine.tick()
+    assert engine.current is Mood.ASLEEP
+
+    assert engine.feed(ev("cost.updated")) == []
+    assert engine.current is Mood.ASLEEP
+
+
+def test_a_cost_update_does_not_postpone_sleep(
+    engine: MoodEngine, clock: FakeClock
+) -> None:
+    clock.advance(590.0)
+    engine.feed(ev("cost.updated"))
+    clock.advance(10.0)
+    assert moods(engine.tick()) == ["asleep"]

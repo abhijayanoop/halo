@@ -111,3 +111,50 @@ async def test_without_a_client_no_model_is_ever_called() -> None:
         bus.publish(make_event("run-1", "tool.called", "Opening app"))
         (mood,) = await _moods(queue, 1)
     assert "refined" not in mood.payload
+
+
+# --- found in review: a mood held back by the dwell keeps its own line -------
+
+
+async def test_a_mood_delayed_by_the_dwell_still_gets_the_line_of_its_event() -> None:
+    bus = EventBus()
+    clock = {"t": 0.0}
+    async with (
+        bus.subscribe() as queue,
+        MoodDirector(bus, tick_s=0.005, clock=lambda: clock["t"]),
+    ):
+        bus.publish(make_event("run-1", "run.started", "open Notepad"))
+        await _moods(queue, 1)  # thinking, shown at once
+
+        clock["t"] += 0.1  # well inside the 700 ms dwell
+        bus.publish(make_event("run-1", "tool.called", "Opening Notepad"))
+        await asyncio.sleep(0.05)
+        clock["t"] += 0.8
+        (focused,) = await _moods(queue, 1)
+
+    assert focused.payload["mood"] == "focused"
+    assert focused.payload["line"] == "Opening Notepad"
+
+
+async def test_delighted_after_a_fast_run_says_all_done_not_ready() -> None:
+    bus = EventBus()
+    clock = {"t": 0.0}
+    async with (
+        bus.subscribe() as queue,
+        MoodDirector(bus, tick_s=0.005, clock=lambda: clock["t"]),
+    ):
+        bus.publish(make_event("run-1", "run.started", "open Notepad"))
+        await _moods(queue, 1)
+
+        clock["t"] += 0.1
+        bus.publish(make_event("run-1", "tool.called", "Opening Notepad"))
+        bus.publish(make_event("run-1", "tool.result", "Opened Notepad"))
+        bus.publish(
+            make_event("run-1", "run.finished", "Done", payload={"status": "ok"})
+        )
+        await asyncio.sleep(0.05)
+        clock["t"] += 0.8
+        (delighted,) = await _moods(queue, 1)
+
+    assert delighted.payload["mood"] == "delighted"
+    assert delighted.payload["line"] == "All done"

@@ -22,7 +22,7 @@ from pydantic import BaseModel, field_validator
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from halo.bootstrap import Halo
-from halo.core.contracts import ApprovalDecision, ApprovalGrant
+from halo.core.contracts import ApprovalDecision, ApprovalGrant, HaloEvent
 from halo.core.events import new_event_id
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
@@ -38,6 +38,33 @@ def _retrieve(task: asyncio.Future[Any]) -> None:
     """Done-callback: mark a finished helper task's outcome as seen."""
     if not task.cancelled():
         task.exception()
+
+
+class CatchUp:
+    """What a HUD that connects late (or reconnects) needs to be told: the current
+    mood, and every approval card still waiting for an answer. Without it a
+    dropped socket would leave a run paused forever with no card on screen."""
+
+    def __init__(self) -> None:
+        self._mood: HaloEvent | None = None
+        self._open: dict[str, HaloEvent] = {}
+
+    def feed(self, event: HaloEvent) -> None:
+        match event.type:
+            case "mood":
+                self._mood = event
+            case "approval.requested":
+                key = event.payload.get("approval_id")
+                self._open[str(key or event.id)] = event
+            case "approval.resolved":
+                self._open.pop(str(event.payload.get("approval_id")), None)
+            case "run.finished" | "run.failed":
+                self._open = {
+                    k: e for k, e in self._open.items() if e.run_id != event.run_id
+                }
+
+    def snapshot(self) -> list[HaloEvent]:
+        return [*([self._mood] if self._mood else []), *self._open.values()]
 
 
 class RunBody(BaseModel):
@@ -153,6 +180,7 @@ def create_app(
     always passes one. `static_dir` is the built HUD, served from the same
     origin as the API."""
     tasks: set[asyncio.Task[Any]] = set()
+    catchup = CatchUp()
     resuming: set[str] = set()
 
     def spawn(coro: Awaitable[Any]) -> None:
@@ -162,12 +190,20 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-        async with open_halo_cm() as halo:
+        async with open_halo_cm() as halo, halo.bus.subscribe() as watch:
             app.state.halo = halo
+            app.state.catchup = catchup
+
+            async def track() -> None:
+                while True:
+                    catchup.feed(await watch.get())
+
+            tracker = asyncio.ensure_future(track())
             yield
+            tracker.cancel()
             for task in list(tasks):
                 task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.gather(tracker, *tasks, return_exceptions=True)
 
     app = FastAPI(title="Halo", lifespan=lifespan)
     app.add_middleware(LocalOnlyMiddleware, token=token)
@@ -222,6 +258,10 @@ def create_app(
         # Subscribe before accepting, so no event between connect and subscribe is missed.
         async with halo.bus.subscribe() as queue:
             await ws.accept()
+            # Tell a late or reconnecting HUD where things stand. Anything that also
+            # arrives through the queue is a duplicate the HUD ignores by event id.
+            for event in ws.app.state.catchup.snapshot():
+                await ws.send_text(event.model_dump_json())
 
             async def pump() -> None:
                 while True:

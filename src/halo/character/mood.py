@@ -14,7 +14,13 @@ from halo.core.contracts import HaloEvent
 from halo.core.events import make_event
 
 DWELL_S = 0.7  # minimum time a mood stays on screen
-TIMED_MOOD_S = 2.0  # Delighted and Remembering fade after this long
+# Moods that fade by themselves, and how long each stays once it is shown.
+HOLD_S = {
+    "delighted": 2.0,
+    "remembering": 2.0,
+    "confused": 6.0,
+    "guarding": 6.0,
+}
 SLEEP_AFTER_S = 600.0  # no events for 10 minutes -> Asleep
 
 
@@ -63,21 +69,23 @@ class MoodEngine:
         self._careful = 0
         self._delegating = 0
         self._asking = 0
-        self._guarding = False
-        self._confused = False
-        # Timed moods: wanted (`pending`) from the event, but the 2 s only start
-        # once the face is actually shown, so the dwell cannot eat into them.
-        self._remembering_pending = False
-        self._remembering_until: float | None = None
-        self._delighted_pending = False
-        self._delighted_until: float | None = None
+        # Timed moods: wanted (`pending`) from the event, but the hold only starts
+        # once the face is actually shown, so the dwell cannot eat into it.
+        self._pending: set[Mood] = set()
+        self._until: dict[Mood, float] = {}
+        # The event that last asked for each mood: its title is the status line.
+        self._causes: dict[Mood, HaloEvent] = {}
 
     @property
     def current(self) -> Mood:
         return self._current
 
+    def cause(self, mood: Mood) -> HaloEvent | None:
+        """The latest event that asked for `mood` (what its status line is about)."""
+        return self._causes.get(mood)
+
     def feed(self, event: HaloEvent) -> list[HaloEvent]:
-        if event.type == "mood":  # our own output; never counts as activity
+        if event.type in ("mood", "cost.updated"):  # not activity: never wakes Halo
             return []
         now = self._clock()
         self._expire(now)
@@ -105,48 +113,61 @@ class MoodEngine:
 
     # -- rules ---------------------------------------------------------------
 
+    def _want(self, mood: Mood, event: HaloEvent) -> None:
+        self._causes[mood] = event
+
     def _apply(self, event: HaloEvent, now: float) -> None:
         match event.type:
             case "voice.listening":
                 self._listening = True
+                self._want(Mood.LISTENING, event)
             case "voice.heard":
                 self._listening = False
             case "run.started":
                 # A new run starts fresh: stale blocks and counters are dropped.
-                self._guarding = False
-                self._confused = False
+                for mood in (Mood.GUARDING, Mood.CONFUSED, Mood.DELIGHTED):
+                    self._pending.discard(mood)
+                    self._until.pop(mood, None)
                 self._focused = self._careful = self._delegating = 0
-                self._delighted_pending = False
-                self._delighted_until = None
                 self._thinking = True
+                self._want(Mood.THINKING, event)
             case "step.started":
                 self._thinking = True
+                self._want(Mood.THINKING, event)
             case "tool.called":
                 if event.payload.get("untrusted") is True:
                     self._careful += 1
+                    self._want(Mood.CAREFUL, event)
                 else:
                     self._focused += 1
+                    self._want(Mood.FOCUSED, event)
             case "tool.result":
                 self._release_tool(event.payload.get("untrusted") is True)
             case "agent.spawned":
                 self._delegating += 1
+                self._want(Mood.DELEGATING, event)
             case "agent.finished":
                 self._delegating = max(0, self._delegating - 1)
             case "memory.proposed" | "memory.saved":
-                self._remembering_pending = True
+                self._pending.add(Mood.REMEMBERING)
+                self._want(Mood.REMEMBERING, event)
             case "approval.requested":
                 self._asking += 1
+                self._want(Mood.ASKING, event)
             case "approval.resolved":
                 self._asking = max(0, self._asking - 1)
             case "policy.blocked":
-                self._guarding = True
+                self._pending.add(Mood.GUARDING)
+                self._want(Mood.GUARDING, event)
             case "run.failed":
                 self._thinking = False
-                self._confused = True
+                self._pending.add(Mood.CONFUSED)
+                self._want(Mood.CONFUSED, event)
             case "run.finished":
                 self._thinking = False
                 if event.payload.get("status") == "ok":
-                    self._delighted_pending = True
+                    self._pending.add(Mood.DELIGHTED)
+                    self._want(Mood.DELIGHTED, event)
 
     def _release_tool(self, untrusted: bool) -> None:
         if (untrusted and self._careful) or not self._focused:
@@ -155,19 +176,13 @@ class MoodEngine:
             self._focused -= 1
 
     def _expire(self, now: float) -> None:
-        if self._remembering_until is not None and now >= self._remembering_until:
-            self._remembering_until = None
-        if self._delighted_until is not None and now >= self._delighted_until:
-            self._delighted_until = None
+        for mood in [m for m, until in self._until.items() if now >= until]:
+            del self._until[mood]
 
     def _active(self, mood: Mood) -> bool:
         match mood:
             case Mood.ASKING:
                 return self._asking > 0
-            case Mood.GUARDING:
-                return self._guarding
-            case Mood.CONFUSED:
-                return self._confused
             case Mood.LISTENING:
                 return self._listening
             case Mood.DELEGATING:
@@ -178,10 +193,8 @@ class MoodEngine:
                 return self._careful > 0
             case Mood.THINKING:
                 return self._thinking
-            case Mood.REMEMBERING:
-                return self._remembering_pending or self._remembering_until is not None
-            case Mood.DELIGHTED:
-                return self._delighted_pending or self._delighted_until is not None
+            case Mood.GUARDING | Mood.CONFUSED | Mood.REMEMBERING | Mood.DELIGHTED:
+                return mood in self._pending or mood in self._until
             case _:
                 return False
 
@@ -210,12 +223,9 @@ class MoodEngine:
         previous = self._current
         self._current = target
         self._last_change = now
-        if target is Mood.DELIGHTED:
-            self._delighted_pending = False
-            self._delighted_until = now + TIMED_MOOD_S
-        elif target is Mood.REMEMBERING:
-            self._remembering_pending = False
-            self._remembering_until = now + TIMED_MOOD_S
+        if target.value in HOLD_S:
+            self._pending.discard(target)
+            self._until[target] = now + HOLD_S[target.value]
         return [
             make_event(
                 self._run_id,
