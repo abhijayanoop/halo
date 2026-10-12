@@ -146,4 +146,28 @@ describe("PermissionCard", () => {
     render(<PermissionCard approval={approval()} total={1} api={api} />);
     expect(screen.queryByTestId("card-count")).toBeNull();
   });
+
+  it("Enter on a focused Deny button denies; it never allows", async () => {
+    render(<PermissionCard approval={approval()} total={1} api={api} />);
+    screen.getByRole("button", { name: /deny/i }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(api.approve).toHaveBeenCalledTimes(1);
+    expect(api.approve).toHaveBeenCalledWith(expect.objectContaining({ grant: "deny" }));
+  });
+
+  it("Enter on Always for this task grants that, not Allow once", async () => {
+    render(<PermissionCard approval={approval()} total={1} api={api} />);
+    screen.getByRole("button", { name: /always for this task/i }).focus();
+    await userEvent.keyboard("{Enter}");
+    expect(api.approve).toHaveBeenCalledTimes(1);
+    expect(api.approve).toHaveBeenCalledWith(
+      expect.objectContaining({ grant: "always_for_task" }),
+    );
+  });
+
+  it("ignores a held-down key", async () => {
+    render(<PermissionCard approval={approval()} total={1} api={api} />);
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", repeat: true }));
+    expect(api.approve).not.toHaveBeenCalled();
+  });
 });

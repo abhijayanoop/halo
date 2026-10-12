@@ -77,6 +77,9 @@ export interface HaloState {
   statusLine: string;
   blocked: { runId: string; reason: string } | null;
   totalCostInr: number;
+  /** True once the core has sent a status line on a mood event; from then on
+   *  only mood events set the status line (raw event titles are for the timeline). */
+  lineFromCore: boolean;
   seen: Record<string, true>;
 }
 
@@ -90,6 +93,7 @@ export const initialState: HaloState = {
   statusLine: "Ready",
   blocked: null,
   totalCostInr: 0,
+  lineFromCore: false,
   seen: {},
 };
 
@@ -160,6 +164,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
       mood,
       moodSince: event.ts,
       statusLine: line ?? base.statusLine,
+      lineFromCore: base.lineFromCore || line !== null,
     };
   }
 
@@ -176,7 +181,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
     ...run,
     timeline: [...run.timeline, toTimelineItem(event)],
   }));
-  next = { ...next, statusLine: event.title };
+  if (!next.lineFromCore) next = { ...next, statusLine: event.title };
 
   switch (event.type) {
     case "run.started":
@@ -189,6 +194,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
         })),
         activeRunId: event.run_id,
         blocked: null,
+        lineFromCore: false,
       };
 
     case "step.started":

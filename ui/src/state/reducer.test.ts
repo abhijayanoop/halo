@@ -216,6 +216,16 @@ describe("reducer", () => {
     expect(s.statusLine).toBe("Planning");
   });
 
+  it("once the core has sent a mood line, raw event titles stop overwriting it", () => {
+    const s = reduceAll([
+      ev("run.started", { request: "x" }),
+      ev("mood", { mood: "focused", line: "Opening Notepad" }),
+      ev("step.finished", {}, { title: "Finished (error)" }),
+      ev("tool.result", {}, { title: "Opened Notepad" }),
+    ]);
+    expect(s.statusLine).toBe("Opening Notepad");
+  });
+
   it("ignores an event it has already seen (a reconnect can replay)", () => {
     const first = ev("run.started", { request: "x" });
     const once = reduce(initialState, first);

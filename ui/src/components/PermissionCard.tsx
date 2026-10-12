@@ -48,6 +48,10 @@ export function PermissionCard({
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
+      if (event.repeat) return; // a held-down key must not answer twice
+      // Enter on a focused button presses that button, whichever it is: the card's
+      // own shortcut must never turn Enter-on-Deny into an allow.
+      if (event.key === "Enter" && event.target instanceof HTMLButtonElement) return;
       if (event.key === "Enter") {
         event.preventDefault();
         void answer("allow_once");

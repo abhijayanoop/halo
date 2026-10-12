@@ -20,21 +20,29 @@ provider text in `run.failed`, config read on the event loop. Remaining before D
 2. Latency: ~2-8 s per Nano call because the models think by default. Try `extra_body` to turn reasoning off (a few calls).
 3. Print the exact router score (make the live test report hits); re-run everything on Token Factory when its key arrives.
 
-## Day 3 stages
-Done and committed on `feat/hud-day3`: 0 housekeeping · 1 approval_id contract, approved launch of unlisted apps, API token, /events cleanup fix · 2 `character/mood.py` + `MoodDirector` · 3 UI scaffold, reducer, connection, API client · 4 `app.py` (pywebview shell, guarded `js_api`, server thread, static UI) · 5 mascot, bar, panel, `/moods`.
-In progress: 6 permission card + e2e (`PermissionCard` built and tested; still to wire into `App.tsx`) · then 7 `character/lines.py` · 8 polish + reviews + PR.
-Demo app is Notepad, not Spotify (not installed here).
+## Day 3 stages (branch `feat/hud-day3`, built and tested offline)
+Done: approval_id contract + approved launch of unlisted apps + API token + /events cleanup fix; `character/mood.py` + `MoodDirector` + `lines.py`;
+UI scaffold, reducer, connection, API client; `app.py` shell; Rough.js mascot, bar, panel, permission card, `/moods`; review fixes from an independent reviewer,
+a security reviewer and a visual reviewer. 498 Python and 91 UI tests pass; ruff, pyright, tsc and the UI build are clean.
+Demo app is Notepad, not Spotify (not installed here). The "done when" loop is covered by `tests/api/test_demo_loop.py` (scripted model, real server, bus and mood director).
+NOT yet done: the real window has never been opened (see Known issues), and nothing has been run against a live model today.
 
 ## Next
-- Day 3: HUD + character (`app.py`, pywebview, React reducer, `character/mood.py`, mascot, permission card). Needs no model.
+- First: install pywebview and run the real window once (see Known issues), then open the PR for `feat/hud-day3` (ask before pushing).
 - Then memory, coding session, security + voice, life skills, evals (see docs/PLAN.md).
 - Re-run the live spike, router eval and cascade table on Token Factory when its key arrives; only those numbers are published.
 
 ## Known issues
-- Event bus queues are unbounded (a stuck client could grow memory). Bound them, dropping the slow subscriber, when it matters.
-- `pywebview` is not yet in `pyproject.toml`/`uv.lock` and `halo-app` is not yet a script: the network was down for `uv add` (DNS). Run `uv add pywebview`, then add
-  `halo-app = "halo.app:entry"` under `[project.scripts]`. `python -m halo.app` works once pywebview is installed. The window itself has not been run yet.
-- Starting the app needs the HUD built: `cd ui && npm ci && npm run build` (or `HALO_UI_URL=http://localhost:5173` with `npm run dev`, which proxies to port 8765).
+- **Not run for real yet:** `pywebview` is not in `pyproject.toml`/`uv.lock` and `halo-app` is not a script (the network was down for `uv add`). Run `uv add pywebview`,
+  add `halo-app = "halo.app:entry"` under `[project.scripts]`, build the HUD (`cd ui && npm ci && npm run build`), then `uv run halo-app` and try "open Notepad".
+  For the dev loop use `HALO_UI_URL=http://localhost:5173` with `npm run dev` (proxies to port 8765).
+- Header Pause/Stop and the mic button are not built (no cancel path in the core yet). The Approvals, Memory, Ledger and History tabs are stubs.
+- Event bus queues are unbounded (a stuck client could grow memory).
+- `retry()` emits no `run.started`, so the mood engine keeps stale state during a retried run.
+- A paused run restored from the checkpoint after a restart is not offered to a new HUD (the catch-up only knows approvals seen since this process started).
+- "Always for this task" grants live in the SQLite checkpoint and `retry()` reuses them; `docs/CONTRACTS.md` says they are never persisted. Decide which is right.
+- `~/.halo/api-token` is written with `chmod 600`, which does not change the ACL on Windows (it relies on the profile folder's default ACL).
+- Mood events are not yet derived from sub-agent or Reader events (those modules do not exist), so Careful relies on a `payload.untrusted` flag on `tool.called`.
 - The `privacy: local` guard is not wired yet: `open_halo` passes no `local_texts` (there is no vault yet). Wire it, failing closed, with memory (Day 4 of PLAN).
 - Only Nemotron on NVIDIA's API has been exercised; Token Factory (the submission target) is untested until its key arrives.
 - The HUD is served over http from the local server (same origin), so the `null` Origin (`file://`) is still rejected, on purpose.
