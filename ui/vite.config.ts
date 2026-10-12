@@ -1,6 +1,5 @@
 /// <reference types="vitest/config" />
-import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
@@ -23,8 +22,9 @@ export default defineConfig({
       "/health": core,
       "/events": { target: core, ws: true },
     },
-    // `?mock=<path to a run .jsonl>` reads recorded runs from the repo or ~/.halo.
-    fs: { allow: [resolve(root, ".."), join(homedir(), ".halo")] },
+    // `?mock=<path to a run .jsonl>` reads recorded runs from inside the repo only
+    // (never ~/.halo, which holds the API token).
+    fs: { allow: [resolve(root, "..")] },
   },
   test: {
     environment: "jsdom",

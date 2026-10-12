@@ -32,7 +32,19 @@ BAR_WIDTH, BAR_HEIGHT, BAR_TOP = 260, 44, 8
 MIN_SIZE = (200, 40)
 MAX_SIZE = (800, 900)
 MIN_VISIBLE = (100, 40)  # how much of the window must stay on screen
-DEV_API_PORT = 8765  # the Vite dev server proxies to this port
+DEV_API_PORT = 8765
+# open_path hands a file to the OS, so only documents, never programs or scripts.
+OPENABLE = {
+    ".md",
+    ".txt",
+    ".json",
+    ".jsonl",
+    ".csv",
+    ".log",
+    ".png",
+    ".jpg",
+    ".pdf",
+}  # the Vite dev server proxies to this port
 
 
 class Window(Protocol):
@@ -113,8 +125,16 @@ class HudApi:
         sits inside an allowed root (symlinks and `..` are resolved first)."""
         if not isinstance(path, str) or not path.strip():
             return False
+        # Lexical checks first: resolving a \\server\share path would itself
+        # open a network connection (and leak the user's login hash).
+        if path.startswith(("\\\\", "//")):
+            return False
         raw = Path(path)
-        if not raw.is_absolute():
+        if not raw.is_absolute() or raw.suffix.lower() not in OPENABLE:
+            return False
+        if not any(
+            raw.drive.casefold() == root.drive.casefold() for root in self._roots
+        ):
             return False
         try:
             target = raw.resolve(strict=True)

@@ -171,3 +171,45 @@ async def test_the_server_thread_serves_the_api_and_stops_cleanly(
     finally:
         server.stop()
     assert not server.is_alive()
+
+
+# --- found in review: lexical checks before the filesystem is touched -------
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"\\attacker\share\x.md",
+        "//attacker/share/x.md",
+        r"\\?\C:\x.md",
+        r"\\.\pipe\x",
+    ],
+)
+def test_open_path_refuses_network_paths_without_touching_them(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, path: str
+) -> None:
+    def boom(self, *args, **kwargs):
+        raise AssertionError("resolved a network path: that would connect to it")
+
+    launched: list[list[str]] = []
+    api = HudApi(
+        FakeWindow(), SCREEN, allowed_roots=[tmp_path], launcher=launched.append
+    )
+    monkeypatch.setattr(Path, "resolve", boom)
+
+    assert api.open_path(path) is False
+    assert launched == []
+
+
+@pytest.mark.parametrize(
+    "name", ["run.exe", "setup.cmd", "x.bat", "y.ps1", "z.lnk", "noext"]
+)
+def test_open_path_only_opens_documents_not_programs(tmp_path: Path, name: str) -> None:
+    root = tmp_path / "allowed"
+    root.mkdir()
+    (root / name).write_text("x")
+    launched: list[list[str]] = []
+    api, _ = _api(tmp_path, launched)
+
+    assert api.open_path(str(root / name)) is False
+    assert launched == []

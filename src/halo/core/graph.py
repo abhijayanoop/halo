@@ -20,7 +20,7 @@ from langgraph.types import interrupt
 
 from halo.core.approval import apply_grant, needs_approval
 from halo.core.context import HaloContext
-from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType
+from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType, Step
 from halo.core.events import make_event, new_event_id
 from halo.core.planner import make_plan
 from halo.core.router import route
@@ -62,6 +62,27 @@ def _result_status(result: dict[str, Any]) -> str:
     if "error" in result or result.get("needs_approval"):
         return "error"
     return "ok"
+
+
+def _describe(registry: SkillRegistry, step: Step) -> str:
+    """The exact action shown on the approval card. A skill may describe its own
+    args (so only validated fields appear); the default is the raw args."""
+    if step.tool in registry:
+        describe = getattr(registry.get(step.tool).module, "describe", None)
+        if callable(describe):
+            try:
+                return str(describe(step.args))
+            except ValueError:
+                pass
+    return str(step.args)
+
+
+def _grantable(registry: SkillRegistry, step: Step) -> bool:
+    """Ask the step's skill whether "always for this task" may cover it."""
+    if step.tool not in registry:
+        return True
+    check = getattr(registry.get(step.tool).module, "grantable", None)
+    return bool(check(step.args)) if callable(check) else True
 
 
 def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
@@ -109,14 +130,19 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         request = ApprovalRequest(
             approval_id=new_event_id(),
             action=step.tool,
-            detail=str(step.args),
+            detail=_describe(deps.registry, step),
             risk=step.risk,
         )
         # Nothing observable happens before this line: on resume the node runs again.
         grant = interrupt(
             {"request": request.model_dump(mode="json"), "step_index": index}
         )
-        allowed, granted = apply_grant(grant, step, state["granted_tools"])
+        allowed, granted = apply_grant(
+            grant,
+            step,
+            state["granted_tools"],
+            grantable=_grantable(deps.registry, step),
+        )
         update: dict[str, Any] = {"approved": allowed, "granted_tools": granted}
         if not allowed:
             update["results"] = [
@@ -141,7 +167,11 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
             result: dict[str, Any] = {"error": f"no tool named '{step.tool}'"}
         else:
             ctx = HaloContext(
-                state["run_id"], deps.emit, deps.model, approved=state["approved"]
+                state["run_id"],
+                deps.emit,
+                deps.model,
+                # Only a step that needed a yes carries one; a low-risk step is never "approved".
+                approved=state["approved"] and step.risk != "low",
             )
             try:
                 result = await deps.registry.get(step.tool).module.run(ctx, step.args)

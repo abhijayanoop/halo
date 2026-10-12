@@ -272,7 +272,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     config = load_config()
     token = resolve_token(default_home())
     app = create_app(lambda: open_halo(config), token=token)
-    uvicorn.run(app, host=host, port=port)
+    uvicorn.run(app, host=host, port=port, access_log=False)
 
 
 if __name__ == "__main__":

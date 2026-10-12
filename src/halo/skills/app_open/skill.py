@@ -7,10 +7,12 @@ argument list, never through a shell.
 """
 
 import asyncio
+import os
 import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from halo.config import AppEntry, load_config
 from halo.core.contracts import RiskLevel, RunContext
@@ -43,6 +45,21 @@ def _find_app(name: str) -> tuple[str, AppEntry] | None:
     return None
 
 
+def describe(args: dict) -> str:
+    """What the approval card shows: only the validated app name, so extra keys a
+    model adds can never make the card read like a different app."""
+    return str({"app": _app_name(args)})
+
+
+def grantable(args: dict) -> bool:
+    """Only an allowlisted app can be covered by "always for this task"; every
+    other app needs its own yes."""
+    try:
+        return _find_app(_app_name(args)) is not None
+    except SkillArgsError:
+        return False
+
+
 def assess_risk(args: dict) -> RiskLevel:
     """Allowlisted apps are low risk; anything else needs an approval."""
     return "low" if _find_app(_app_name(args)) else "medium"
@@ -58,10 +75,27 @@ def approved_argv(name: str) -> list[str]:
     return [name]
 
 
+def _find_exe(name: str) -> str | None:
+    """Look the program up on PATH only. On Windows `shutil.which` also tries the
+    current folder first, so a planted `code.cmd` there would win; each PATH
+    entry is searched on its own and a hit must really live in that entry."""
+    cwd = Path.cwd().resolve()
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or entry == os.curdir:
+            continue
+        folder = Path(entry).resolve()
+        if folder == cwd:
+            continue
+        found = shutil.which(name, path=entry)
+        if found and Path(found).resolve().parent == folder:
+            return str(Path(found).resolve())
+    return None
+
+
 async def _spawn(argv: list[str]) -> None:
     """Start a detached process. Raises FileNotFoundError if the program is
     not installed."""
-    exe = shutil.which(argv[0])
+    exe = _find_exe(argv[0])
     if exe is None:
         raise FileNotFoundError(argv[0])
     kwargs: dict = {}

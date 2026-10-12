@@ -19,15 +19,20 @@ def needs_approval(step: Step, granted_tools: Sequence[str]) -> bool:
 
 
 def apply_grant(
-    grant: str, step: Step, granted_tools: Sequence[str]
+    grant: str,
+    step: Step,
+    granted_tools: Sequence[str],
+    *,
+    grantable: bool = True,
 ) -> tuple[bool, list[str]]:
     """Return (may the step run, the tools now granted for this task). A grant
-    for the task never extends to high-risk steps."""
+    for the task never extends to high-risk steps, nor to a step whose skill says
+    it is not grantable (a grant is for what the user saw, not for the next one)."""
     if grant not in get_args(ApprovalGrant):
         raise ValueError(f"unknown approval grant: {grant!r}")
     granted = list(granted_tools)
     if grant == "deny":
         return False, granted
-    if grant == "always_for_task" and step.risk == "medium":
+    if grant == "always_for_task" and step.risk == "medium" and grantable:
         granted.append(step.tool)
     return True, granted
