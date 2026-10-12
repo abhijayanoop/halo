@@ -13,3 +13,4 @@ build/
 spikes/models/
 spikes/*.wav
 tests/fixtures/demo_repo/
+ui/dist/
