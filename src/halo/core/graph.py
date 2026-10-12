@@ -93,7 +93,7 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         step_event(
             state,
             "step.finished",
-            f"Plan ready: {len(plan.steps)} steps",
+            f"Plan ready: {len(plan.steps)} step{'' if len(plan.steps) == 1 else 's'}",
             {"stage": "plan", "steps": len(plan.steps)},
         )
         return {"plan": plan}

@@ -151,7 +151,16 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
 
   if (event.type === "mood") {
     const mood = payload.mood;
-    return isMood(mood) ? { ...base, mood, moodSince: event.ts } : base;
+    if (!isMood(mood)) return base;
+    // The core writes the status line onto its mood events (a template at once,
+    // then a better one from Nano), so the line always agrees with the face.
+    const line = str(payload.line);
+    return {
+      ...base,
+      mood,
+      moodSince: event.ts,
+      statusLine: line ?? base.statusLine,
+    };
   }
 
   if (event.type === "cost.updated") {

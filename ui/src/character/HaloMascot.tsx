@@ -6,6 +6,20 @@ import { type Motion, moodSpec } from "./spec";
 
 const BOIL_MS = 125; // ~8 redraws a second
 const MAX_MINI_HALOS = 4;
+const ORBIT = { cx: 50, cy: 17, rx: 46, ry: 9, steps: 16 };
+
+/** Keyframes that carry a mini-halo once around a flat ellipse above the head,
+ *  starting `phase` (0..1) of the way round. It never crosses the face. */
+function orbitFrames(phase: number) {
+  const angles = Array.from(
+    { length: ORBIT.steps + 1 },
+    (_, k) => 2 * Math.PI * (phase + k / ORBIT.steps),
+  );
+  return {
+    cx: angles.map((a) => ORBIT.cx + ORBIT.rx * Math.cos(a)),
+    cy: angles.map((a) => ORBIT.cy + ORBIT.ry * Math.sin(a)),
+  };
+}
 
 /** Re-seed the sketch ~8 times a second while `active`, so the line shimmers. */
 function useBoil(active: boolean): number {
@@ -67,7 +81,7 @@ function ringMotion(motionKind: Motion, reduced: boolean) {
   switch (motionKind) {
     case "spin":
       return {
-        animate: { scaleX: [1, 0.35, 1] },
+        animate: { scaleX: [1, 0.6, 1] },
         transition: {
           duration: 3.2,
           repeat: Infinity,
@@ -178,7 +192,7 @@ export function HaloMascot({
 
       <motion.g
         style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
-        opacity={spec.ringStyle === "progress" ? 0.35 : 1}
+        opacity={spec.ringStyle === "progress" ? 0.25 : 1}
         {...ringMotion(spec.motion, reduced)}
       >
         {group(layers.ring, "ring")}
@@ -200,33 +214,26 @@ export function HaloMascot({
         />
       )}
 
-      {miniCount > 0 && (
-        <motion.g
-          style={{ transformOrigin: "50px 56px" }}
-          animate={reduced ? {} : { rotate: 360 }}
-          transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
-        >
-          {Array.from({ length: miniCount }, (_, i) => {
-            const angle = (i / miniCount) * 2 * Math.PI;
-            const x = 50 + 46 * Math.cos(angle);
-            const y = 56 + 40 * Math.sin(angle);
-            return (
-              <ellipse
-                // biome-ignore lint/suspicious/noArrayIndexKey: fixed small set
-                key={i}
-                data-testid="mini-halo"
-                cx={x}
-                cy={y}
-                rx={7}
-                ry={2.4}
-                fill="none"
-                stroke={spec.ring}
-                strokeWidth={2}
-              />
-            );
-          })}
-        </motion.g>
-      )}
+      {miniCount > 0 &&
+        Array.from({ length: miniCount }, (_, i) => {
+          const frames = orbitFrames(i / miniCount);
+          return (
+            <motion.ellipse
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed small set
+              key={i}
+              data-testid="mini-halo"
+              cx={frames.cx[0]}
+              cy={frames.cy[0]}
+              rx={10}
+              ry={3.4}
+              fill="none"
+              stroke={spec.ring}
+              strokeWidth={2.6}
+              animate={reduced ? {} : frames}
+              transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
+            />
+          );
+        })}
     </motion.svg>
   );
 }

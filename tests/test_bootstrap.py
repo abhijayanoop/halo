@@ -56,3 +56,12 @@ async def test_opening_halo_for_real_without_an_api_key_is_a_config_error(
     with pytest.raises(ConfigError, match="NEBIUS_API_KEY"):
         async with open_halo(HaloConfig(), home=tmp_path / "h"):
             pass
+
+
+def test_nano_status_lines_are_off_unless_switched_on() -> None:
+    from halo.bootstrap import status_lines_for
+
+    client = object()
+    assert status_lines_for(client, {}) is None  # type: ignore[arg-type]
+    assert status_lines_for(client, {"HALO_STATUS_LINES": "0"}) is None  # type: ignore[arg-type]
+    assert status_lines_for(client, {"HALO_STATUS_LINES": "1"}) is not None  # type: ignore[arg-type]

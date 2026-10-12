@@ -193,6 +193,29 @@ describe("reducer", () => {
     expect(s.statusLine).toBe("Planning");
   });
 
+  it("a mood event's line becomes the status line, and a refined line replaces it", () => {
+    const s = reduceAll([
+      ev("run.started", { request: "x" }),
+      ev("mood", { mood: "focused", line: "Opening app" }),
+    ]);
+    expect(s.statusLine).toBe("Opening app");
+    const refined = reduce(
+      s,
+      ev("mood", { mood: "focused", line: "Opening Notepad", refined: true }),
+    );
+    expect(refined.statusLine).toBe("Opening Notepad");
+    expect(refined.mood).toBe("focused");
+  });
+
+  it("a mood event without a line leaves the status line alone", () => {
+    const s = reduceAll([
+      ev("run.started", { request: "x" }),
+      ev("step.started", {}, { title: "Planning" }),
+      ev("mood", { mood: "thinking" }),
+    ]);
+    expect(s.statusLine).toBe("Planning");
+  });
+
   it("ignores an event it has already seen (a reconnect can replay)", () => {
     const first = ev("run.started", { request: "x" });
     const once = reduce(initialState, first);
