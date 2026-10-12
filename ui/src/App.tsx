@@ -3,6 +3,7 @@ import { createApi } from "./api";
 import { CollapsedBar } from "./components/CollapsedBar";
 import { MoodsPage } from "./components/MoodsPage";
 import { Panel } from "./components/Panel";
+import { PermissionCard } from "./components/PermissionCard";
 import { readParams } from "./connection";
 import { useStore } from "./state/store";
 import { useHaloEvents } from "./useHaloEvents";
@@ -36,17 +37,27 @@ function Hud() {
   }, [view]);
 
   useEffect(() => {
+    // On the permission card Escape means Deny (the card handles it), not collapse.
+    if (view === "card") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setExpanded(false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [setExpanded]);
+  }, [setExpanded, view]);
 
+  if (view === "card") {
+    return (
+      <PermissionCard
+        approval={halo.pendingApprovals[0]}
+        total={halo.pendingApprovals.length}
+        api={api}
+      />
+    );
+  }
   if (view === "panel")
     return (
       <Panel halo={halo} api={api} onCollapse={() => setExpanded(false)} />
     );
-  if (view === "card") return <div data-testid="permission-card-slot" />;
   return <CollapsedBar halo={halo} onExpand={() => setExpanded(true)} />;
 }
