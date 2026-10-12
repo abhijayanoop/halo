@@ -17,6 +17,7 @@ from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -146,9 +147,11 @@ def create_app(
     open_halo_cm: Callable[[], AbstractAsyncContextManager[Halo]],
     *,
     token: str | None = None,
+    static_dir: Path | None = None,
 ) -> FastAPI:
     """`token=None` turns the token check off; only tests do that. serve()
-    always passes one."""
+    always passes one. `static_dir` is the built HUD, served from the same
+    origin as the API."""
     tasks: set[asyncio.Task[Any]] = set()
     resuming: set[str] = set()
 
@@ -250,6 +253,10 @@ def create_app(
                     task.cancel()
                 with contextlib.suppress(RuntimeError):
                     await ws.close()
+
+    if static_dir is not None:
+        # Last, so the API routes above always win over a file of the same name.
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="ui")
 
     return app
 
