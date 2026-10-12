@@ -42,8 +42,8 @@ implies is deferred until the dwell elapses (emitted by tick()).
 from itertools import combinations
 
 import pytest
-from halo.character.mood import Mood, MoodEngine
 
+from halo.character.mood import Mood, MoodEngine
 from halo.core.contracts import HaloEvent
 from halo.core.events import make_event
 
@@ -414,3 +414,35 @@ def test_edge_guarding_and_confused_clear_when_the_next_run_starts(
 
     assert moods(out) == ["thinking"]
     assert out[0].run_id == "run-2"
+
+
+# --- timed moods count from when they are shown, not from the event ---------
+
+
+@pytest.mark.parametrize(
+    ("trigger_type", "payload", "mood"),
+    [
+        ("run.finished", {"status": "ok"}, Mood.DELIGHTED),
+        ("memory.saved", None, Mood.REMEMBERING),
+    ],
+)
+def test_a_timed_mood_keeps_its_full_two_seconds_when_the_dwell_delays_it(
+    engine: MoodEngine,
+    clock: FakeClock,
+    trigger_type: str,
+    payload: dict | None,
+    mood: Mood,
+) -> None:
+    engine.feed(ev("tool.called"))  # Focused, shown at t=0
+    clock.advance(TOO_SOON)
+    assert engine.feed(ev("tool.result")) == []  # Idle wanted, but held by the dwell
+    engine.feed(ev(trigger_type, payload))  # the timed mood is wanted too
+    clock.advance(0.5)  # t=0.75: the dwell is over, the timed mood is shown now
+    assert moods(engine.tick()) == [mood.value]
+
+    clock.advance(1.5)  # 1.5 s after it was shown
+    assert engine.tick() == []
+    assert engine.current is mood
+
+    clock.advance(0.5)  # 2.0 s after it was shown
+    assert moods(engine.tick()) == ["idle"]

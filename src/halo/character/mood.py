@@ -65,7 +65,11 @@ class MoodEngine:
         self._asking = 0
         self._guarding = False
         self._confused = False
+        # Timed moods: wanted (`pending`) from the event, but the 2 s only start
+        # once the face is actually shown, so the dwell cannot eat into them.
+        self._remembering_pending = False
         self._remembering_until: float | None = None
+        self._delighted_pending = False
         self._delighted_until: float | None = None
 
     @property
@@ -112,6 +116,7 @@ class MoodEngine:
                 self._guarding = False
                 self._confused = False
                 self._focused = self._careful = self._delegating = 0
+                self._delighted_pending = False
                 self._delighted_until = None
                 self._thinking = True
             case "step.started":
@@ -128,7 +133,7 @@ class MoodEngine:
             case "agent.finished":
                 self._delegating = max(0, self._delegating - 1)
             case "memory.proposed" | "memory.saved":
-                self._remembering_until = now + TIMED_MOOD_S
+                self._remembering_pending = True
             case "approval.requested":
                 self._asking += 1
             case "approval.resolved":
@@ -141,7 +146,7 @@ class MoodEngine:
             case "run.finished":
                 self._thinking = False
                 if event.payload.get("status") == "ok":
-                    self._delighted_until = now + TIMED_MOOD_S
+                    self._delighted_pending = True
 
     def _release_tool(self, untrusted: bool) -> None:
         if (untrusted and self._careful) or not self._focused:
@@ -174,9 +179,9 @@ class MoodEngine:
             case Mood.THINKING:
                 return self._thinking
             case Mood.REMEMBERING:
-                return self._remembering_until is not None
+                return self._remembering_pending or self._remembering_until is not None
             case Mood.DELIGHTED:
-                return self._delighted_until is not None
+                return self._delighted_pending or self._delighted_until is not None
             case _:
                 return False
 
@@ -205,6 +210,12 @@ class MoodEngine:
         previous = self._current
         self._current = target
         self._last_change = now
+        if target is Mood.DELIGHTED:
+            self._delighted_pending = False
+            self._delighted_until = now + TIMED_MOOD_S
+        elif target is Mood.REMEMBERING:
+            self._remembering_pending = False
+            self._remembering_until = now + TIMED_MOOD_S
         return [
             make_event(
                 self._run_id,
