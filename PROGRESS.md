@@ -21,7 +21,9 @@ provider text in `run.failed`, config read on the event loop. Remaining before D
 3. Print the exact router score (make the live test report hits); re-run everything on Token Factory when its key arrives.
 
 ## Day 3 stages
-0 housekeeping · 1 approval_id contract + approval backend (BLOCKED until a session runs with HALO_CONTRACT_EDIT=1) · 2 character/mood.py · 3 UI scaffold + reducer · 4 app.py window · 5 mascot/bar/panel · 6 permission card + e2e · 7 character/lines.py · 8 polish + review + PR.
+Done and committed on `feat/hud-day3`: 0 housekeeping · 1 approval_id contract, approved launch of unlisted apps, API token, /events cleanup fix · 2 `character/mood.py` + `MoodDirector` · 3 UI scaffold, reducer, connection, API client · 4 `app.py` (pywebview shell, guarded `js_api`, server thread, static UI) · 5 mascot, bar, panel, `/moods`.
+In progress: 6 permission card + e2e (`PermissionCard` built and tested; still to wire into `App.tsx`) · then 7 `character/lines.py` · 8 polish + reviews + PR.
+Demo app is Notepad, not Spotify (not installed here).
 
 ## Next
 - Day 3: HUD + character (`app.py`, pywebview, React reducer, `character/mood.py`, mascot, permission card). Needs no model.
@@ -29,16 +31,13 @@ provider text in `run.failed`, config read on the event loop. Remaining before D
 - Re-run the live spike, router eval and cascade table on Token Factory when its key arrives; only those numbers are published.
 
 ## Known issues
-- Open decision: bind each approval to the step the user saw (an approval id in `approval.requested`, required by `/approve`), so a stale or
-  repeated click cannot approve the next step. Needs a new required field on `/approve`, so existing server tests change; do with the permission card.
-- Approved launch of a non-allowlisted app (e.g. Spotify) is not built: `app.open` returns `needs_approval`, the run ends `error`. Build it with the
-  permission card (Day 3) using a validated app name, no shell, and an approval flag set by the executor, never by model args.
-- The local API has no per-launch auth token; add one when the HUD connects (Day 3). Event queues are unbounded.
+- Event bus queues are unbounded (a stuck client could grow memory). Bound them, dropping the slow subscriber, when it matters.
+- `pywebview` is not yet in `pyproject.toml`/`uv.lock` and `halo-app` is not yet a script: the network was down for `uv add` (DNS). Run `uv add pywebview`, then add
+  `halo-app = "halo.app:entry"` under `[project.scripts]`. `python -m halo.app` works once pywebview is installed. The window itself has not been run yet.
+- Starting the app needs the HUD built: `cd ui && npm ci && npm run build` (or `HALO_UI_URL=http://localhost:5173` with `npm run dev`, which proxies to port 8765).
 - The `privacy: local` guard is not wired yet: `open_halo` passes no `local_texts` (there is no vault yet). Wire it, failing closed, with memory (Day 4 of PLAN).
 - Only Nemotron on NVIDIA's API has been exercised; Token Factory (the submission target) is untested until its key arrives.
-- Approved launch of a non-allowlisted app (e.g. Spotify) is not built: `app.open` returns `needs_approval` and the run ends in `error`.
-  Needs a safe launch path (a model-supplied name must never reach a Windows shell).
-- Server rejects the `null` Origin (a `file://` page); revisit when the HUD loading method is chosen.
+- The HUD is served over http from the local server (same origin), so the `null` Origin (`file://`) is still rejected, on purpose.
 - Voice accuracy is weak on live mic input; `sherpa-onnx` transducer variant fails to load (see `spikes/RESULTS.md`).
 - `tests/fixtures/demo_repo` is gitignored (nested .git); regenerate per `spikes/claude_worker_probe.py`.
 - Todo from Day 0: `~/HaloVault` not created/confirmed; Obsidian not confirmed installed.
