@@ -19,6 +19,10 @@ export interface Api {
   }): Promise<void>;
   /** End a run that is working or waiting on a card. */
   stop?(runId: string): Promise<void>;
+  /** Write a proposed memory to a note (default: by its subject) and drop it from the inbox. */
+  memoryApprove?(candidateId: string, note?: string): Promise<void>;
+  /** Discard a proposed memory. */
+  memoryReject?(candidateId: string): Promise<void>;
 }
 
 export function createApi(
@@ -55,6 +59,15 @@ export function createApi(
     },
     async stop(runId) {
       await post("/stop", { run_id: runId });
+    },
+    async memoryApprove(candidateId, note) {
+      await post("/memory/approve", {
+        candidate_id: candidateId,
+        ...(note ? { note } : {}),
+      });
+    },
+    async memoryReject(candidateId) {
+      await post("/memory/reject", { candidate_id: candidateId });
     },
   };
 }

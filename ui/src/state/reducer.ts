@@ -25,6 +25,22 @@ export type RunStatus = "running" | "paused" | "finished" | "failed";
 export type RunResult = "ok" | "error" | "denied";
 export type Risk = "low" | "medium" | "high";
 
+export interface RecalledMemory {
+  fact: string;
+  note: string;
+  source: string;
+  trust: string;
+}
+
+/** A fact Halo thinks is worth keeping, waiting for the user's yes or no. */
+export interface ProposedMemory {
+  candidateId: string;
+  fact: string;
+  subject: string;
+  source: string;
+  trust: string;
+}
+
 export interface TimelineItem {
   id: string;
   type: HaloEvent["type"];
@@ -33,6 +49,8 @@ export interface TimelineItem {
   agentId: string | null;
   durationMs?: number;
   stepStatus?: string;
+  /** The memories that went into a prompt, when this step recalled some. */
+  memories?: RecalledMemory[];
 }
 
 export interface AgentNode {
@@ -72,6 +90,7 @@ export interface HaloState {
   order: string[];
   activeRunId: string | null;
   pendingApprovals: PendingApproval[];
+  proposedMemories: ProposedMemory[];
   mood: Mood;
   moodSince: string | null;
   statusLine: string;
@@ -88,6 +107,7 @@ export const initialState: HaloState = {
   order: [],
   activeRunId: null,
   pendingApprovals: [],
+  proposedMemories: [],
   mood: "idle",
   moodSince: null,
   statusLine: "Ready",
@@ -135,13 +155,31 @@ function withRun(
   };
 }
 
+function recalled(value: unknown): RecalledMemory[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const found: RecalledMemory[] = [];
+  for (const m of value) {
+    const fact = str((m as Record<string, unknown>)?.fact);
+    if (!fact) continue;
+    found.push({
+      fact,
+      note: str((m as Record<string, unknown>).note) ?? "",
+      source: str((m as Record<string, unknown>).source) ?? "",
+      trust: str((m as Record<string, unknown>).trust) ?? "",
+    });
+  }
+  return found.length > 0 ? found : undefined;
+}
+
 function toTimelineItem(event: HaloEvent): TimelineItem {
+  const memories = recalled(event.payload?.memories);
   return {
     id: event.id,
     type: event.type,
     title: event.title,
     ts: event.ts,
     agentId: event.agent_id ?? null,
+    ...(memories ? { memories } : {}),
   };
 }
 
@@ -165,6 +203,40 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
       moodSince: event.ts,
       statusLine: line ?? base.statusLine,
       lineFromCore: base.lineFromCore || line !== null,
+    };
+  }
+
+  // Proposed memories belong to no run: they are not a step and change no mood.
+  if (event.type === "memory.proposed") {
+    const candidateId = str(payload.candidate_id);
+    const fact = str(payload.fact);
+    if (!candidateId || !fact) return base;
+    if (base.proposedMemories.some((p) => p.candidateId === candidateId))
+      return base;
+    return {
+      ...base,
+      proposedMemories: [
+        ...base.proposedMemories,
+        {
+          candidateId,
+          fact,
+          subject: str(payload.subject) ?? "",
+          source: str(payload.source) ?? "agent",
+          trust: str(payload.trust) ?? "medium",
+        },
+      ],
+    };
+  }
+  if (
+    (event.type === "memory.saved" || event.type === "memory.forgotten") &&
+    str(payload.candidate_id)
+  ) {
+    const settled = str(payload.candidate_id);
+    return {
+      ...base,
+      proposedMemories: base.proposedMemories.filter(
+        (p) => p.candidateId !== settled,
+      ),
     };
   }
 

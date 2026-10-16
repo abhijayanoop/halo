@@ -10,6 +10,7 @@ import type {
   TimelineItem,
 } from "../state/reducer";
 import { runningAgents, useGaze } from "./CollapsedBar";
+import { MemoryTab } from "./MemoryTab";
 
 const TABS = ["Now", "Approvals", "Memory", "Ledger", "History"] as const;
 type Tab = (typeof TABS)[number];
@@ -113,19 +114,37 @@ function NowTab({ run }: { run: RunView | undefined }) {
                 initial={{ opacity: 0, y: 6 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.2 }}
-                className="flex items-center gap-2 rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[13px] text-ink"
+                className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[13px] text-ink"
               >
-                <span
-                  aria-hidden
-                  className={`w-3 text-center text-xs ${DOT[state].style}`}
-                >
-                  {DOT[state].glyph}
-                </span>
-                <span className="min-w-0 flex-1 truncate">{item.title}</span>
-                {item.durationMs !== undefined && (
-                  <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-ink-dim">
-                    {duration(item.durationMs)}
+                <div className="flex items-center gap-2">
+                  <span
+                    aria-hidden
+                    className={`w-3 text-center text-xs ${DOT[state].style}`}
+                  >
+                    {DOT[state].glyph}
                   </span>
+                  <span className="min-w-0 flex-1 truncate">{item.title}</span>
+                  {item.durationMs !== undefined && (
+                    <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-ink-dim">
+                      {duration(item.durationMs)}
+                    </span>
+                  )}
+                </div>
+                {item.memories && (
+                  // The exact memories that went into the prompt, and where each came from.
+                  <ul
+                    aria-label="Memories used"
+                    className="mt-1 flex flex-col gap-1 pl-5"
+                  >
+                    {item.memories.map((m) => (
+                      <li key={`${m.note}-${m.fact}`} className="leading-snug">
+                        <span className="text-ink">{m.fact}</span>
+                        <span className="block font-mono text-[10px] text-ink-faint">
+                          {m.note} · {m.source} · {m.trust}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </motion.li>
             );
@@ -261,6 +280,11 @@ export function Panel({
             }`}
           >
             {name}
+            {name === "Memory" && halo.proposedMemories.length > 0 && (
+              <span className="ml-1.5 rounded-full bg-amber-400/30 px-1.5 text-[10px] font-semibold text-amber-100">
+                {halo.proposedMemories.length}
+              </span>
+            )}
           </button>
         ))}
       </div>
@@ -268,6 +292,8 @@ export function Panel({
       <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/10">
         {tab === "Now" ? (
           <NowTab run={run} />
+        ) : tab === "Memory" ? (
+          <MemoryTab proposals={halo.proposedMemories} api={api} />
         ) : (
           <p data-testid="tab-stub" className="p-4 text-sm text-ink-dim">
             {tab} is coming soon.

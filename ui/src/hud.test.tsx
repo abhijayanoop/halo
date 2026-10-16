@@ -170,7 +170,7 @@ describe("Panel", () => {
     render(<Panel halo={initialState} api={api} onCollapse={() => {}} />);
     const tabs = screen.getAllByRole("tab").map((t) => t.textContent);
     expect(tabs).toEqual(["Now", "Approvals", "Memory", "Ledger", "History"]);
-    await userEvent.click(screen.getByRole("tab", { name: "Memory" }));
+    await userEvent.click(screen.getByRole("tab", { name: "Ledger" }));
     expect(screen.getByTestId("tab-stub")).toHaveTextContent(/soon/i);
   });
 
