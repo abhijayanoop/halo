@@ -48,6 +48,9 @@ def resolve_note(vault: Path, relative: str) -> Path:
     path = (root / relative).resolve()
     if not path.is_relative_to(root):
         raise VaultPathError(f"not a path inside the vault: {relative!r}")
+    # Hidden folders (.obsidian, .git) hold the editor's own files, not notes.
+    if any(part.startswith(".") for part in path.relative_to(root).parts):
+        raise VaultPathError(f"not a note path: {relative!r}")
     return path
 
 

@@ -172,7 +172,17 @@ def test_an_obsidian_link_names_the_vault_and_the_note(tmp_path: Path) -> None:
     assert link == "obsidian://open?vault=HaloVault&file=Projects%2Fhalo"
 
 
-@pytest.mark.parametrize("bad", ["../escape.md", "/abs.md", "C:/x.md"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "../escape.md",
+        "/abs.md",
+        "C:/x.md",
+        ".obsidian/plugins/x.md",
+        "Projects/.hidden/x.md",
+        ".git/config.md",
+    ],
+)
 def test_a_note_path_can_not_leave_the_vault(tmp_path: Path, bad: str) -> None:
     from halo.memory.vault import VaultPathError, resolve_note
 
