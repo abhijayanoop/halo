@@ -79,6 +79,10 @@ class RunBody(BaseModel):
         return value
 
 
+class StopBody(BaseModel):
+    run_id: str
+
+
 class ApproveBody(BaseModel):
     run_id: str
     approval_id: str
@@ -254,6 +258,15 @@ def create_app(
                 resuming.discard(body.run_id)
 
         spawn(resume())
+        return {"ok": True}
+
+    @app.post("/stop")
+    async def stop(body: StopBody, request: Request) -> dict[str, bool]:
+        halo: Halo = request.app.state.halo
+        if body.run_id in resuming:
+            raise HTTPException(409, "that run is answering a permission card")
+        if not await halo.runner.stop(body.run_id):
+            raise HTTPException(404, "that run is not working or waiting")
         return {"ok": True}
 
     @app.websocket("/events")

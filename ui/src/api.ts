@@ -1,4 +1,4 @@
-// The two calls the HUD makes: start a run, answer an approval card.
+// The calls the HUD makes: start a run, answer an approval card, stop a run.
 export type Grant = "allow_once" | "deny" | "always_for_task";
 
 export class ApiError extends Error {
@@ -17,6 +17,8 @@ export interface Api {
     approvalId: string;
     grant: Grant;
   }): Promise<void>;
+  /** End a run that is working or waiting on a card. */
+  stop?(runId: string): Promise<void>;
 }
 
 export function createApi(
@@ -50,6 +52,9 @@ export function createApi(
     },
     async approve({ runId, approvalId, grant }) {
       await post("/approve", { run_id: runId, approval_id: approvalId, grant });
+    },
+    async stop(runId) {
+      await post("/stop", { run_id: runId });
     },
   };
 }

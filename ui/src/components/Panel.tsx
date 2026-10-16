@@ -155,6 +155,18 @@ export function Panel({
   const mascotBox = useRef<HTMLDivElement>(null);
   const gaze = useGaze(mascotBox);
 
+  const live = run?.status === "running" || run?.status === "paused";
+
+  const stop = async () => {
+    if (!run) return;
+    setError(null);
+    try {
+      await api.stop?.(run.id);
+    } catch {
+      setError("Couldn't stop that run. It may already be done.");
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const request = text.trim();
@@ -215,6 +227,15 @@ export function Panel({
             )}
           </div>
         </div>
+        {live && (
+          <button
+            type="button"
+            onClick={() => void stop()}
+            className="rounded-lg bg-red-500/20 px-2.5 py-1 text-xs font-semibold text-red-200 transition hover:bg-red-500/30 active:scale-95"
+          >
+            ■ Stop
+          </button>
+        )}
         <button
           type="button"
           aria-label="Collapse"

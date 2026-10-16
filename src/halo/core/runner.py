@@ -5,6 +5,7 @@ The runner owns the run-level events: `run.started`, `approval.requested`,
 re-executed on resume, so they never emit those.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -87,6 +88,8 @@ class HaloRunner:
     def __init__(self, graph: Any, emit: Callable[[HaloEvent], None]) -> None:
         self._graph = graph
         self._emit = emit
+        self._tasks: dict[str, asyncio.Task[Any]] = {}  # runs being driven right now
+        self._stopping: set[str] = set()
 
     @staticmethod
     def _config(run_id: str) -> dict[str, Any]:
@@ -134,6 +137,35 @@ class HaloRunner:
         )
         return await self._drive(run_id, None)
 
+    async def stop(self, run_id: str) -> bool:
+        """End a run the user no longer wants. A working run is cancelled; a run
+        waiting on a card is denied. Both finish with `run.finished` (status
+        "denied", `stopped`), so no new event type is needed. False if the run is
+        neither working nor waiting."""
+        task = self._tasks.get(run_id)
+        if task is not None and not task.done():
+            self._stopping.add(run_id)
+            task.cancel()
+            return True
+        pending = await self.pending_approval(run_id)
+        if pending is None:
+            return False
+        await self.resume(
+            run_id, ApprovalDecision(approval_id=pending.approval_id, grant="deny")
+        )
+        return True
+
+    def _stopped(self, run_id: str) -> RunOutcome:
+        self._emit(
+            make_event(
+                run_id,
+                "run.finished",
+                "Stopped",
+                payload={"status": "denied", "stopped": True, "results": []},
+            )
+        )
+        return RunOutcome(run_id, "finished", result_status="denied")
+
     async def pending_approval(self, run_id: str) -> ApprovalRequest | None:
         snapshot = await self._graph.aget_state(self._config(run_id))
         for task in snapshot.tasks:
@@ -168,8 +200,18 @@ class HaloRunner:
         return found
 
     async def _drive(self, run_id: str, graph_input: Any) -> RunOutcome:
+        task = asyncio.current_task()
+        if task is not None:
+            self._tasks[run_id] = task
         try:
             result = await self._graph.ainvoke(graph_input, self._config(run_id))
+        except asyncio.CancelledError:
+            if run_id not in self._stopping:
+                raise  # cancelled by shutdown, not by a Stop
+            self._stopping.discard(run_id)
+            if task is not None:
+                task.uncancel()
+            return self._stopped(run_id)
         except Exception as exc:
             logger.exception("run %s failed", run_id)
             reason = _failure_reason(exc)
@@ -182,6 +224,8 @@ class HaloRunner:
                 )
             )
             return RunOutcome(run_id, "failed", error=reason)
+        finally:
+            self._tasks.pop(run_id, None)
 
         if interruptions := result.get("__interrupt__"):
             value = interruptions[0].value
