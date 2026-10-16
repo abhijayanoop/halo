@@ -117,3 +117,53 @@ describe("the animation timers", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("the flat minimal mascot", () => {
+  const body = (c: HTMLElement) =>
+    c.querySelector('[data-layer="body"] path') as SVGPathElement;
+
+  it("fills the body with the mood colour, near-white when idle", () => {
+    for (const mood of MOODS) {
+      const { container, unmount } = render(<HaloMascot mood={mood} />);
+      expect(body(container).getAttribute("fill")?.toLowerCase()).toBe(
+        moodSpec(mood).body.toLowerCase(),
+      );
+      unmount();
+    }
+  });
+
+  it("has no outline around the body", () => {
+    const { container } = render(<HaloMascot mood="thinking" />);
+    const stroke = body(container).getAttribute("stroke");
+    expect(stroke === null || stroke === "none").toBe(true);
+  });
+
+  it("draws no mouth when idle and no brows ever", () => {
+    const { container } = render(<HaloMascot mood="idle" />);
+    expect(container.querySelectorAll('[data-layer="mouth"] path')).toHaveLength(0);
+    expect(container.querySelector('[data-layer="brow"]')).toBeNull();
+  });
+
+  it("puts the working marker in a small corner badge", () => {
+    const { container } = render(<HaloMascot mood="thinking" />);
+    const badge = container.querySelector('[data-badge="thoughts"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.querySelector("circle")).not.toBeNull();
+  });
+
+  it("has no badge for moods without a marker, and none for free-floating ones", () => {
+    for (const mood of ["idle", "delighted", "confused", "listening"] as const) {
+      const { container, unmount } = render(<HaloMascot mood={mood} />);
+      expect(container.querySelector("[data-badge]")).toBeNull();
+      unmount();
+    }
+  });
+
+  it("shows cheeks only for the moods that call for them", () => {
+    const happy = render(<HaloMascot mood="delighted" />);
+    expect(happy.container.querySelector('[data-layer="cheeks"]')).not.toBeNull();
+    happy.unmount();
+    const calm = render(<HaloMascot mood="idle" />);
+    expect(calm.container.querySelector('[data-layer="cheeks"]')).toBeNull();
+  });
+});

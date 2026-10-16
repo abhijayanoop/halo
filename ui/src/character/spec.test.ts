@@ -76,25 +76,47 @@ describe("moodSpec", () => {
   });
 });
 
-describe("moodSpec expressions (v2)", () => {
-  it("gives every mood a face that is readable without its accessory", () => {
-    const faces = MOODS.map((m) => {
-      const s = moodSpec(m);
-      return `${s.eyes}|${s.mouth}|${s.brow}`;
-    });
-    expect(new Set(faces).size).toBe(MOODS.length);
-  });
-
-  it("has a glow strength between 0 and 1 for every mood", () => {
+describe("moodSpec, the flat minimal mascot", () => {
+  it("colours the body by mood: near-white idle, otherwise the mood colour", () => {
+    expect(moodSpec("idle").body.toLowerCase()).toBe("#e9eaee");
     for (const mood of MOODS) {
-      const { glow } = moodSpec(mood);
-      expect(glow).toBeGreaterThanOrEqual(0);
-      expect(glow).toBeLessThanOrEqual(1);
+      const { body, ring } = moodSpec(mood);
+      expect(body).toMatch(/^#[0-9a-f]{6}$/i);
+      if (mood !== "idle" && mood !== "asleep") expect(body).toBe(ring);
     }
   });
 
-  it("glows brighter when Halo is asking or guarding than when idle", () => {
-    expect(moodSpec("asking").glow).toBeGreaterThan(moodSpec("idle").glow);
-    expect(moodSpec("guarding").glow).toBeGreaterThan(moodSpec("idle").glow);
+  it("asleep is a dim grey body, not a bright one", () => {
+    expect(moodSpec("asleep").body.toLowerCase()).toBe("#6b7080");
+  });
+
+  it("tells every mood apart by eyes, mouth, badge and colour together", () => {
+    const looks = MOODS.map((m) => {
+      const s = moodSpec(m);
+      return `${s.eyes}|${s.mouth}|${s.accessory}|${s.body}`;
+    });
+    expect(new Set(looks).size).toBe(MOODS.length);
+  });
+
+  it("has no mouth at rest: the eyes carry the face", () => {
+    expect(moodSpec("idle").mouth).toBe("none");
+  });
+
+  it("shows cheeks only when delighted or confused", () => {
+    expect(MOODS.filter((m) => moodSpec(m).cheeks)).toEqual([
+      "delighted",
+      "confused",
+    ]);
+  });
+
+  it("puts a badge in the corner for these accessories, and draws the rest free", () => {
+    const badged = MOODS.filter((m) => moodSpec(m).badge).map(
+      (m) => moodSpec(m).accessory,
+    );
+    expect(badged.sort()).toEqual(
+      ["hand", "magnifier", "pencil", "shield", "thoughts", "zzz"].sort(),
+    );
+    expect(moodSpec("delighted").badge).toBe(false);
+    expect(moodSpec("confused").badge).toBe(false);
   });
 });

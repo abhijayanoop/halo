@@ -1,9 +1,9 @@
 // Draws Halo's layers as clean vector paths. Nothing here is random: the same
 // spec always gives the same shapes, and all motion is done by the mascot.
 //
-// The body is a light squircle with dark ink, but accessories mostly sit on the
-// dark glass bar, so they are outlined in a light tone and filled with colour.
-import type { Accessory, Brow, Eyes, MoodSpec, Mouth } from "./spec";
+// The look is flat on purpose: one squircle body, two small eyes, at most a tiny
+// mouth, and a small round badge in the corner. No outline, no highlight.
+import type { Accessory, Eyes, MoodSpec, Mouth } from "./spec";
 
 export interface Shape {
   d: string;
@@ -14,31 +14,35 @@ export interface Shape {
 }
 
 export interface Layers {
+  shadow: Shape[];
   body: Shape[];
+  cheeks: Shape[];
   eyes: Shape[];
-  brow: Shape[];
   mouth: Shape[];
   ring: Shape[];
+  /** The glyph inside the badge, or the free-floating marker (sparkles, sweat). */
   accessory: Shape[];
 }
 
-export const BODY_GRADIENT = { top: "#fffdf8", bottom: "#ece4d3" };
-const INK = "#23232e";
-const LIGHT = "#e8ecf4"; // outline for things drawn on the dark bar
-const BLUSH = "#ff9db0";
-const EYE_L = { x: 39, y: 56 };
-const EYE_R = { x: 61, y: 56 };
+/** The badge sits on the top-left corner of the body. */
+export const BADGE = { cx: 20, cy: 36, r: 9 };
+export const BADGE_FILL = "#0b0c0f";
+export const RING = { cx: 50, cy: 22, rx: 20, ry: 5.5 };
+
+const INK = "#0b0c0f";
+const LIGHT = "#e9eaee";
+const BLUSH = "#ff8aa0";
+const EYE_L = { x: 38, y: 60 };
+const EYE_R = { x: 62, y: 60 };
 const NONE = "none";
 
+// A 4:3 squircle: wide and low, like a soft pillow.
 const BODY_D =
-  "M 24 58 C 24 38, 37 28, 50 28 C 63 28, 76 38, 76 58 C 76 78, 64 87, 50 87 C 36 87, 24 78, 24 58 Z";
+  "M 36 34 H 64 C 78 34 86 42 86 56 V 64 C 86 78 78 86 64 86 H 36 C 22 86 14 78 14 64 V 56 C 14 42 22 34 36 34 Z";
 
-// Shape helpers: every shape is one path string.
 const ellipseD = (cx: number, cy: number, rx: number, ry: number) =>
   `M ${cx - rx} ${cy} a ${rx} ${ry} 0 1 0 ${2 * rx} 0 a ${rx} ${ry} 0 1 0 ${-2 * rx} 0 Z`;
 const circleD = (cx: number, cy: number, r: number) => ellipseD(cx, cy, r, r);
-const polyD = (points: [number, number][]) =>
-  `${points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ")} Z`;
 const lineD = (points: [number, number][]) =>
   points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
 const starD = (x: number, y: number, r: number) =>
@@ -51,53 +55,29 @@ const ink = (d: string, width = 2.4): Shape => ({
 });
 const solidInk = (d: string): Shape => ({
   d,
-  stroke: INK,
-  strokeWidth: 1,
+  stroke: NONE,
+  strokeWidth: 0,
   fill: INK,
 });
-const shine = (cx: number, cy: number, r: number): Shape => ({
+const glyph = (d: string, width = 1.8): Shape => ({
+  d,
+  stroke: LIGHT,
+  strokeWidth: width,
+});
+const glyphDot = (cx: number, cy: number, r: number): Shape => ({
   d: circleD(cx, cy, r),
   stroke: NONE,
   strokeWidth: 0,
-  fill: "#ffffff",
-});
-const outline = (d: string, width = 2): Shape => ({
-  d,
-  stroke: LIGHT,
-  strokeWidth: width,
-});
-const filled = (d: string, fill: string, width = 2): Shape => ({
-  d,
-  stroke: LIGHT,
-  strokeWidth: width,
-  fill,
+  fill: LIGHT,
 });
 
 function spiral(cx: number, cy: number): string {
   const points: [number, number][] = [];
   for (let t = 0; t <= 3 * Math.PI; t += 0.4) {
-    const r = 0.8 + t * 0.95;
+    const r = 0.6 + t * 0.55;
     points.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]);
   }
   return lineD(points);
-}
-
-/** A glossy eye: a dark oval with a bright highlight, which is what makes it look alive. */
-function glossyEye(
-  x: number,
-  y: number,
-  rx: number,
-  ry: number,
-  dx = 0,
-  dy = 0,
-): Shape[] {
-  const cx = x + dx;
-  const cy = y + dy;
-  return [
-    solidInk(ellipseD(cx, cy, rx, ry)),
-    shine(cx - rx * 0.32, cy - ry * 0.4, rx * 0.34),
-    shine(cx + rx * 0.35, cy + ry * 0.38, rx * 0.16),
-  ];
 }
 
 function drawEyes(kind: Eyes): Shape[] {
@@ -107,227 +87,183 @@ function drawEyes(kind: Eyes): Shape[] {
   ];
   switch (kind) {
     case "open":
-      return both((x, y) => glossyEye(x, y, 5.6, 8));
+      return both((x, y) => [solidInk(ellipseD(x, y, 3.4, 5.2))]);
     case "wide":
-      return both((x, y) => glossyEye(x, y, 6.8, 10));
+      return both((x, y) => [solidInk(ellipseD(x, y, 4.2, 6.4))]);
     case "upleft":
-      // Looking up and to the left: pupils pushed well off-centre.
-      return both((x, y) => glossyEye(x, y, 5.6, 8, -3.5, -4));
+      // Looking up and to the left.
+      return both((x, y) => [solidInk(ellipseD(x - 3, y - 3, 3.4, 5.2))]);
     case "squint":
       return both((x, y) => [
-        ink(`M ${x - 6} ${y + 1} Q ${x} ${y - 4} ${x + 6} ${y + 1}`, 3.6),
-        ink(`M ${x - 5} ${y + 3} Q ${x} ${y + 5} ${x + 5} ${y + 3}`, 1.8),
+        ink(`M ${x - 5} ${y + 1} Q ${x} ${y - 3} ${x + 5} ${y + 1}`, 3),
       ]);
     case "closed":
       return both((x, y) => [
-        ink(`M ${x - 6} ${y} Q ${x} ${y + 5} ${x + 6} ${y}`, 2.6),
+        ink(`M ${x - 5} ${y} Q ${x} ${y + 4} ${x + 5} ${y}`, 2.6),
       ]);
     case "happy":
       return both((x, y) => [
-        ink(`M ${x - 6} ${y + 3} Q ${x} ${y - 7} ${x + 6} ${y + 3}`, 3.2),
+        ink(`M ${x - 5} ${y + 2} Q ${x} ${y - 5} ${x + 5} ${y + 2}`, 2.8),
       ]);
     case "spiral":
-      return both((x, y) => [ink(spiral(x, y), 1.8)]);
+      return both((x, y) => [ink(spiral(x, y), 1.6)]);
   }
 }
 
-function drawBrows(kind: Brow): Shape[] {
-  switch (kind) {
-    case "none":
-      return [];
-    case "raised":
-      return [
-        ink("M 32 42 Q 39 37 46 42", 2.2),
-        ink("M 54 42 Q 61 37 68 42", 2.2),
-      ];
-    case "furrow":
-      return [ink("M 32 41 L 46 46", 2.6), ink("M 68 41 L 54 46", 2.6)];
-    case "worry":
-      return [ink("M 32 46 L 46 41", 2.4), ink("M 68 46 L 54 41", 2.4)];
-  }
-}
-
-const cheeks = (): Shape[] => [
-  {
-    d: ellipseD(31, 67, 4.2, 2.6),
+const cheeks = (): Shape[] =>
+  [26, 74].map((x) => ({
+    d: ellipseD(x, 71, 4, 2.6),
     stroke: NONE,
     strokeWidth: 0,
-    fill: BLUSH,
-    opacity: 0.45,
-  },
-  {
-    d: ellipseD(69, 67, 4.2, 2.6),
-    stroke: NONE,
-    strokeWidth: 0,
-    fill: BLUSH,
-    opacity: 0.45,
-  },
-];
+    fill: INK,
+    opacity: 0.16, // a soft darker patch reads as a blush on any body colour
+  }));
 
 function drawMouth(kind: Mouth): Shape[] {
   switch (kind) {
     case "smile":
-      return [ink("M 43 69 Q 50 76 57 69"), ...cheeks()];
+      return [ink("M 44 74 Q 50 78 56 74", 2)];
     case "grin":
-      return [solidInk("M 41 67 Q 50 83 59 67 Z"), ...cheeks()];
+      return [solidInk("M 43 72 Q 50 81 57 72 Z")];
     case "smirk":
-      return [ink("M 43 70 Q 51 77 59 67"), ...cheeks()];
+      return [ink("M 44 75 Q 50 79 57 72", 2)];
     case "o":
-      return [solidInk(ellipseD(50, 72, 4.4, 5.6))];
+      return [solidInk(ellipseD(50, 75, 3, 3.6))];
     case "flat":
-      return [ink("M 44 72 L 56 72")];
+      return [ink("M 45 75 L 55 75", 2)];
     case "frown":
-      return [ink("M 43 75 Q 50 68 57 75")];
+      return [ink("M 44 77 Q 50 72 56 77", 2)];
     case "tongue":
       return [
+        ink("M 44 74 Q 50 78 56 74", 2),
         {
-          d: ellipseD(50, 76, 5, 5.6),
-          stroke: INK,
-          strokeWidth: 1.4,
-          fill: "#ff7f98",
+          d: ellipseD(50, 79, 2.8, 2.8),
+          stroke: NONE,
+          strokeWidth: 0,
+          fill: BLUSH,
         },
-        ink("M 42 69 Q 50 76 58 69"),
-        ...cheeks(),
       ];
     case "none":
       return [];
   }
 }
 
-// Accessories keep clear of the face (x 30-72, y 44-80) so the mood stays readable.
+const { cx: BX, cy: BY } = BADGE;
+
+/** What goes in the badge, or floats beside the body for the two that are not badges. */
 function drawAccessory(kind: Accessory | null): Shape[] {
   switch (kind) {
     case null:
       return [];
     case "zzz":
       return [
-        outline(
+        glyph(
           lineD([
-            [74, 26],
-            [84, 26],
-            [74, 36],
-            [84, 36],
+            [BX - 4, BY - 4],
+            [BX + 4, BY - 4],
+            [BX - 4, BY + 4],
+            [BX + 4, BY + 4],
           ]),
-          2.6,
-        ),
-        outline(
-          lineD([
-            [88, 10],
-            [95, 10],
-            [88, 17],
-            [95, 17],
-          ]),
-          2.2,
         ),
       ];
     case "thoughts":
       return [
-        filled(circleD(80, 42, 4), "#c9d4ff"),
-        filled(circleD(86, 31, 6.5), "#c9d4ff"),
-        filled(circleD(93, 17, 11), "#e8eeff"),
+        glyphDot(BX - 5, BY, 1.5),
+        glyphDot(BX, BY, 1.5),
+        glyphDot(BX + 5, BY, 1.5),
       ];
     case "magnifier":
       return [
-        filled(circleD(88, 64, 14), "#9fd8ff66", 2.6),
-        outline(
+        glyph(circleD(BX - 1, BY - 1, 3.8), 1.6),
+        glyph(
           lineD([
-            [98, 74],
-            [105, 85],
+            [BX + 2, BY + 2],
+            [BX + 5, BY + 5],
           ]),
-          3.8,
+          2,
         ),
       ];
     case "pencil":
       return [
-        filled(
-          polyD([
-            [76, 82],
-            [86, 64],
-            [98, 70],
-            [88, 88],
+        glyph(
+          lineD([
+            [BX - 1, BY + 1],
+            [BX + 4, BY - 4],
           ]),
-          "#ffd45e",
-          2.2,
+          3.2,
         ),
-        filled(
-          polyD([
-            [76, 82],
-            [88, 88],
-            [72, 94],
-          ]),
-          "#f4a38c",
-        ),
+        // The sharpened tip, filled, so it reads as a pencil and not a slash.
+        {
+          d: `M ${BX - 5} ${BY + 5} L ${BX - 4} ${BY + 0.5} L ${BX - 0.5} ${BY + 4} Z`,
+          stroke: NONE,
+          strokeWidth: 0,
+          fill: LIGHT,
+        },
       ];
     case "hand":
+      // A question mark: Halo is asking.
       return [
-        outline("M 76 76 Q 92 72 93 50", 3.6),
-        filled(circleD(93, 42, 12), "#fffdf8"),
-        outline(
-          lineD([
-            [88, 36],
-            [87, 28],
-          ]),
-          2.4,
+        glyph(
+          `M ${BX - 3} ${BY - 3} Q ${BX - 3} ${BY - 6} ${BX} ${BY - 6} Q ${BX + 3} ${BY - 6} ${BX + 3} ${BY - 3} Q ${BX + 3} ${BY - 1} ${BX} ${BY} V ${BY + 2}`,
+          1.8,
         ),
-        outline(
-          lineD([
-            [93, 34],
-            [93, 25],
-          ]),
-          2.4,
-        ),
-        outline(
-          lineD([
-            [98, 36],
-            [99, 28],
-          ]),
-          2.4,
-        ),
+        glyphDot(BX, BY + 5, 1.1),
       ];
     case "shield":
       return [
-        filled(
-          "M 82 42 L 102 42 L 102 60 Q 102 73 92 80 Q 82 73 82 60 Z",
-          "#ff7a88",
-          2.4,
+        glyph(
+          `M ${BX} ${BY - 6} L ${BX + 5} ${BY - 4} V ${BY + 1} Q ${BX + 5} ${BY + 5} ${BX} ${BY + 7} Q ${BX - 5} ${BY + 5} ${BX - 5} ${BY + 1} V ${BY - 4} Z`,
+          1.6,
         ),
       ];
     case "sparkles":
       return [
-        filled(starD(10, 28, 9), "#ffe27a", 1.4),
-        filled(starD(92, 36, 8), "#ffe27a", 1.4),
-        filled(starD(84, 8, 6), "#ffe27a", 1.4),
+        {
+          d: starD(86, 36, 7),
+          stroke: NONE,
+          strokeWidth: 0,
+          fill: "#ffe27a",
+        },
+        {
+          d: starD(12, 50, 5),
+          stroke: NONE,
+          strokeWidth: 0,
+          fill: "#ffe27a",
+        },
       ];
     case "sweat":
-      return [filled("M 86 26 Q 95 38 86 46 Q 77 38 86 26 Z", "#8ad0ff", 1.8)];
+      return [
+        {
+          d: "M 84 38 Q 90 46 84 51 Q 78 46 84 38 Z",
+          stroke: NONE,
+          strokeWidth: 0,
+          fill: "#8ad0ff",
+        },
+      ];
   }
 }
 
 export function drawLayers(spec: MoodSpec): Layers {
   return {
-    body: [
+    // A soft contact shadow under the body, behind it.
+    shadow: [
       {
-        d: BODY_D,
-        stroke: "#cfc6b3",
-        strokeWidth: 1.4,
-        fill: "url(#halo-body)",
-      },
-      // A soft highlight on the top left, which gives the body its volume.
-      {
-        d: "M 32 46 Q 33 36 44 33",
-        stroke: "#ffffff",
-        strokeWidth: 3,
-        opacity: 0.7,
+        d: ellipseD(50, 90, 30, 3.2),
+        stroke: NONE,
+        strokeWidth: 0,
+        fill: "#000000",
+        opacity: 0.35,
       },
     ],
+    body: [{ d: BODY_D, stroke: NONE, strokeWidth: 0, fill: spec.body }],
+    cheeks: spec.cheeks ? cheeks() : [],
     eyes: drawEyes(spec.eyes),
-    brow: drawBrows(spec.brow),
     mouth: drawMouth(spec.mouth),
     ring: [
       {
-        d: ellipseD(50, 14, 22, 6.5),
+        d: ellipseD(RING.cx, RING.cy, RING.rx, RING.ry),
         stroke: spec.ring,
-        strokeWidth: 3.4,
+        strokeWidth: 2.4,
       },
     ],
     accessory: drawAccessory(spec.accessory),

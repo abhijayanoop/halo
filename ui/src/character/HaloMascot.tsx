@@ -1,12 +1,19 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import type { Mood } from "../state/reducer";
-import { BODY_GRADIENT, type Layers, type Shape, drawLayers } from "./draw";
+import {
+  BADGE,
+  BADGE_FILL,
+  type Layers,
+  RING,
+  type Shape,
+  drawLayers,
+} from "./draw";
 import { type Motion, moodSpec } from "./spec";
 
 const MAX_MINI_HALOS = 4;
-const ORBIT = { cx: 50, cy: 17, rx: 46, ry: 9, steps: 16 };
-const EYE_TRAVEL = { x: 3.2, y: 2.4 }; // how far the eyes can look, in viewBox units
+const ORBIT = { cx: 50, cy: 24, rx: 42, ry: 7, steps: 16 };
+const EYE_TRAVEL = { x: 2.6, y: 1.8 }; // how far the eyes can look, in viewBox units
 const SPRING = { type: "spring", stiffness: 420, damping: 24 } as const;
 
 /** Keyframes that carry a mini-halo once around a flat ellipse above the head,
@@ -49,28 +56,32 @@ function useBlink(enabled: boolean): boolean {
 const clamp = (n: number) =>
   Math.max(-1, Math.min(1, Number.isFinite(n) ? n : 0));
 
-function Shapes({
-  layer,
+function Paths({ shapes }: { shapes: Shape[] }) {
+  return shapes.map((p, i) => (
+    <path
+      // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
+      key={i}
+      d={p.d}
+      stroke={p.stroke}
+      strokeWidth={p.strokeWidth}
+      fill={p.fill ?? "none"}
+      opacity={p.opacity}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  ));
+}
+
+function Layer({
+  shapes,
   name,
 }: {
-  layer: Layers[keyof Layers];
+  shapes: Layers[keyof Layers];
   name: string;
 }) {
   return (
     <g data-layer={name}>
-      {layer.map((p: Shape, i) => (
-        <path
-          // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
-          key={i}
-          d={p.d}
-          stroke={p.stroke}
-          strokeWidth={p.strokeWidth}
-          fill={p.fill ?? "none"}
-          opacity={p.opacity}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      ))}
+      <Paths shapes={shapes} />
     </g>
   );
 }
@@ -136,9 +147,9 @@ function bodyMotion(motionKind: Motion, busy: boolean, reduced: boolean) {
       };
     default:
       return {
-        animate: { scale: [1, 1.03, 1] },
+        animate: { scaleY: [1, 1.035, 1], scaleX: [1, 0.99, 1] },
         transition: {
-          duration: 3,
+          duration: 3.2,
           repeat: Infinity,
           ease: "easeInOut" as const,
         },
@@ -172,7 +183,6 @@ export function HaloMascot({
   const progressValue = progress ?? 0.35;
   const gx = clamp(gaze?.x ?? 0);
   const gy = clamp(gaze?.y ?? 0);
-  const glowPx = 2 + spec.glow * 9;
 
   return (
     <motion.svg
@@ -185,17 +195,12 @@ export function HaloMascot({
       height={size}
       style={{ overflow: "visible" }}
     >
-      <defs>
-        <linearGradient id="halo-body" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor={BODY_GRADIENT.top} />
-          <stop offset="1" stopColor={BODY_GRADIENT.bottom} />
-        </linearGradient>
-      </defs>
+      <Layer shapes={layers.shadow} name="shadow" />
 
       {/* A new mood pops in with a spring instead of snapping. */}
       <motion.g
         key={mood}
-        initial={reduced ? false : { scale: 0.93 }}
+        initial={reduced ? false : { scale: 0.94 }}
         animate={{ scale: 1 }}
         transition={SPRING}
         style={{ transformBox: "fill-box", transformOrigin: "50% 100%" }}
@@ -204,7 +209,10 @@ export function HaloMascot({
           style={{ transformBox: "fill-box", transformOrigin: "50% 100%" }}
           {...bodyMotion(spec.motion, spec.busy, reduced)}
         >
-          <Shapes layer={layers.body} name="body" />
+          <Layer shapes={layers.body} name="body" />
+          {layers.cheeks.length > 0 && (
+            <Layer shapes={layers.cheeks} name="cheeks" />
+          )}
           <motion.g
             data-layer="eyes"
             data-gaze-x={gx}
@@ -217,52 +225,50 @@ export function HaloMascot({
               animate={{ scaleY: blinking ? 0.1 : 1 }}
               transition={{ duration: 0.08 }}
             >
-              {layers.eyes.map((p, i) => (
-                <path
-                  // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
-                  key={i}
-                  d={p.d}
-                  stroke={p.stroke}
-                  strokeWidth={p.strokeWidth}
-                  fill={p.fill ?? "none"}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              ))}
+              <Paths shapes={layers.eyes} />
             </motion.g>
           </motion.g>
-          <Shapes layer={layers.brow} name="brow" />
-          <Shapes layer={layers.mouth} name="mouth" />
+          <Layer shapes={layers.mouth} name="mouth" />
           {spec.accessory && (
             <g data-accessory={spec.accessory}>
-              <Shapes layer={layers.accessory} name="accessory" />
+              {spec.badge ? (
+                <g data-badge={spec.accessory}>
+                  <circle
+                    cx={BADGE.cx}
+                    cy={BADGE.cy}
+                    r={BADGE.r}
+                    fill={BADGE_FILL}
+                    stroke={spec.ring}
+                    strokeWidth={1.6}
+                  />
+                  <Layer shapes={layers.accessory} name="accessory" />
+                </g>
+              ) : (
+                <Layer shapes={layers.accessory} name="accessory" />
+              )}
             </g>
           )}
         </motion.g>
       </motion.g>
 
       <motion.g
-        style={{
-          transformBox: "fill-box",
-          transformOrigin: "50% 50%",
-          filter: `drop-shadow(0 0 ${glowPx}px ${spec.ring})`,
-        }}
+        style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
         opacity={spec.ringStyle === "progress" ? 0.25 : 1}
         {...ringMotion(spec.motion, reduced)}
       >
-        <Shapes layer={layers.ring} name="ring" />
+        <Layer shapes={layers.ring} name="ring" />
       </motion.g>
 
       {spec.ringStyle === "progress" && (
         <ellipse
           data-layer="progress"
-          cx={50}
-          cy={14}
-          rx={22}
-          ry={6.5}
+          cx={RING.cx}
+          cy={RING.cy}
+          rx={RING.rx}
+          ry={RING.ry}
           fill="none"
           stroke={spec.ring}
-          strokeWidth={3.8}
+          strokeWidth={3.2}
           strokeLinecap="round"
           pathLength={1}
           strokeDasharray={`${progressValue} 1`}
@@ -279,11 +285,11 @@ export function HaloMascot({
               data-testid="mini-halo"
               cx={frames.cx[0]}
               cy={frames.cy[0]}
-              rx={10}
-              ry={3.4}
+              rx={9}
+              ry={3}
               fill="none"
               stroke={spec.ring}
-              strokeWidth={2.6}
+              strokeWidth={2}
               animate={reduced ? {} : frames}
               transition={{ duration: 5, repeat: Infinity, ease: "linear" }}
             />

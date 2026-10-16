@@ -1,12 +1,15 @@
 // What each mood looks like. Pure data: the mascot only draws what this says,
 // and the mood itself always comes from the Python core.
+//
+// The mascot is deliberately quiet: one flat body whose colour is the state,
+// two small eyes, and at most a small badge in the corner. Colour is the main
+// signal; the face only adds to it.
 import type { Mood } from "../state/reducer";
 
 export type Eyes =
   "open" | "closed" | "wide" | "squint" | "happy" | "spiral" | "upleft";
 export type Mouth =
   "smile" | "grin" | "o" | "flat" | "frown" | "tongue" | "smirk" | "none";
-export type Brow = "none" | "raised" | "furrow" | "worry";
 export type Accessory =
   | "zzz"
   | "thoughts"
@@ -21,13 +24,17 @@ export type Motion = "none" | "spin" | "pulse" | "bounce" | "squash" | "slow";
 
 export interface MoodSpec {
   label: string;
+  /** The thin halo above the head, and the colour of the badge edge. */
   ring: string;
   ringStyle: RingStyle;
+  /** The flat body fill: near-white when idle, the mood colour otherwise. */
+  body: string;
   eyes: Eyes;
   mouth: Mouth;
-  brow: Brow;
-  glow: number; // 0..1, how strongly the ring glows
+  cheeks: boolean;
   accessory: Accessory | null;
+  /** Draw the accessory as a glyph in a round badge on the corner. */
+  badge: boolean;
   motion: Motion;
   busy: boolean; // the body shows a gentle working motion
 }
@@ -38,41 +45,41 @@ const VIOLET = "#9b6bff";
 const AMBER = "#ffb020";
 const RED = "#ff4d5e";
 const GREEN = "#3ddc97";
+const WHITE = "#e9eaee";
 
 const base: MoodSpec = {
   label: "Idle",
   ring: GREY,
   ringStyle: "plain",
+  body: WHITE,
   eyes: "open",
-  mouth: "smile",
-  brow: "none",
-  glow: 0.25,
+  mouth: "none",
+  cheeks: false,
   accessory: null,
+  badge: false,
   motion: "none",
   busy: false,
 };
 
-// Every mood has its own eyes + mouth + brow, so the face reads on its own
-// even when the accessory is too small to make out.
 const SPECS: Record<Mood, MoodSpec> = {
   asleep: {
     ...base,
     label: "Asleep",
     ring: "#5b6270",
-    glow: 0.1,
+    body: "#6b7080",
     eyes: "closed",
     mouth: "flat",
     accessory: "zzz",
+    badge: true,
     motion: "slow",
   },
   waking: {
     ...base,
     label: "Waking",
     ring: "#c9d4ff",
-    glow: 0.5,
+    body: "#c9d4ff",
     eyes: "wide",
     mouth: "smile",
-    brow: "raised",
     motion: "squash",
   },
   idle: { ...base },
@@ -80,20 +87,20 @@ const SPECS: Record<Mood, MoodSpec> = {
     ...base,
     label: "Listening",
     ring: "#4cc9f0",
-    glow: 0.6,
+    body: "#4cc9f0",
     eyes: "wide",
     mouth: "o",
-    brow: "raised",
     motion: "pulse",
   },
   thinking: {
     ...base,
     label: "Thinking",
     ring: BLUE,
-    glow: 0.6,
+    body: BLUE,
     eyes: "upleft",
     mouth: "flat",
     accessory: "thoughts",
+    badge: true,
     motion: "spin",
     busy: true,
   },
@@ -102,71 +109,68 @@ const SPECS: Record<Mood, MoodSpec> = {
     label: "Focused",
     ring: VIOLET,
     ringStyle: "progress",
-    glow: 0.7,
+    body: VIOLET,
     eyes: "squint",
     mouth: "tongue",
-    brow: "furrow",
     busy: true,
   },
   delegating: {
     ...base,
     label: "Delegating",
     ring: VIOLET,
-    glow: 0.6,
+    body: VIOLET,
     mouth: "smirk",
-    brow: "raised",
     busy: true,
   },
   careful: {
     ...base,
     label: "Careful",
     ring: VIOLET,
-    glow: 0.6,
-    eyes: "open",
+    body: VIOLET,
     mouth: "flat",
-    brow: "furrow",
     accessory: "magnifier",
+    badge: true,
     busy: true,
   },
   remembering: {
     ...base,
     label: "Remembering",
     ring: VIOLET,
-    glow: 0.6,
+    body: VIOLET,
     mouth: "smile",
-    brow: "raised",
     accessory: "pencil",
+    badge: true,
     busy: true,
   },
   asking: {
     ...base,
     label: "Asking",
     ring: AMBER,
-    glow: 0.9,
+    body: AMBER,
     eyes: "wide",
     mouth: "smile",
-    brow: "worry",
     accessory: "hand",
+    badge: true,
     motion: "pulse",
   },
   guarding: {
     ...base,
     label: "Guarding",
     ring: RED,
-    glow: 0.9,
+    body: RED,
     eyes: "squint",
     mouth: "frown",
-    brow: "furrow",
     accessory: "shield",
+    badge: true,
   },
   delighted: {
     ...base,
     label: "Delighted",
     ring: GREEN,
-    glow: 0.8,
+    body: GREEN,
     eyes: "happy",
     mouth: "grin",
-    brow: "raised",
+    cheeks: true,
     accessory: "sparkles",
     motion: "bounce",
   },
@@ -174,9 +178,10 @@ const SPECS: Record<Mood, MoodSpec> = {
     ...base,
     label: "Confused",
     ring: "#f08a5d",
-    glow: 0.4,
+    body: "#f08a5d",
     eyes: "spiral",
     mouth: "frown",
+    cheeks: true,
     accessory: "sweat",
   },
 };
