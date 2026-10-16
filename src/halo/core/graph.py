@@ -6,6 +6,7 @@ run itself (started, approval requested/resolved, finished, failed) are emitted
 by `HaloRunner`, not by nodes. Nodes emit only step and tool events.
 """
 
+import asyncio
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -25,6 +26,8 @@ from halo.core.events import make_event, new_event_id
 from halo.core.planner import make_plan
 from halo.core.router import route
 from halo.core.state import HaloState
+from halo.memory.retrieve import Context
+from halo.memory.store import MemoryStore
 from halo.models.client import ModelClient
 from halo.skills.registry import SkillRegistry
 
@@ -45,6 +48,8 @@ class GraphDeps:
     # a grant covers the rest of the task in this session and is never written to
     # the checkpoint on disk, so a restart asks again.
     grants: dict[str, list[str]] = field(default_factory=dict)
+    # The vault: what Halo knows goes into prompts, and the memory skills use it.
+    memory: MemoryStore | None = None
 
 
 def checkpoint_serde() -> JsonPlusSerializer:
@@ -95,11 +100,42 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
     ) -> None:
         deps.emit(make_event(state["run_id"], type, title, payload=payload))
 
+    async def recalled(request: str) -> Context:
+        """What Halo knows that bears on this request, ready for a prompt. Local
+        notes are left out by the store; with no memory the context is empty."""
+        if deps.memory is None:
+            return Context("")
+        return await asyncio.to_thread(deps.memory.context, request)
+
     async def route_node(state: HaloState) -> dict[str, Any]:
         step_event(
             state, "step.started", "Working out what you want", {"stage": "route"}
         )
-        intent = await route(deps.model, state["request"], run_id=state["run_id"])
+        known = await recalled(state["request"])
+        if known.used:
+            count = len(known.used)
+            # The exact memories that go into the prompt, so the HUD can show them.
+            step_event(
+                state,
+                "tool.result",
+                f"Recalled {count} {'memory' if count == 1 else 'memories'}",
+                {
+                    "stage": "memory",
+                    "tokens": known.tokens,
+                    "memories": [
+                        {
+                            "fact": m.fact,
+                            "note": m.note_path,
+                            "source": m.source,
+                            "trust": m.trust,
+                        }
+                        for m in known.used
+                    ],
+                },
+            )
+        intent = await route(
+            deps.model, state["request"], run_id=state["run_id"], context=known.text
+        )
         step_event(
             state,
             "step.finished",
@@ -112,8 +148,14 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         intent = state["intent"]
         assert intent is not None
         step_event(state, "step.started", "Planning", {"stage": "plan"})
+        known = await recalled(state["request"])
         plan = await make_plan(
-            deps.model, deps.registry, state["run_id"], state["request"], intent
+            deps.model,
+            deps.registry,
+            state["run_id"],
+            state["request"],
+            intent,
+            context=known.text,
         )
         step_event(
             state,
@@ -178,6 +220,7 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
                 deps.model,
                 # Only a step that needed a yes carries one; a low-risk step is never "approved".
                 approved=state["approved"] and step.risk != "low",
+                memory=deps.memory,
             )
             try:
                 result = await deps.registry.get(step.tool).module.run(ctx, step.args)
