@@ -215,7 +215,9 @@ def main() -> int:
 
     token = secrets.token_urlsafe(32)
     app = create_app(
-        lambda: open_halo(config), token=token, static_dir=None if dev_url else dist
+        lambda: open_halo(config, watch=True),
+        token=token,
+        static_dir=None if dev_url else dist,
     )
     server = ServerThread(app, DEV_API_PORT if dev_url else free_port())
     server.start()

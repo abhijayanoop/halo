@@ -67,6 +67,14 @@ class ApiConfig(BaseModel):
     extra_body: dict[str, Any] = Field(default_factory=dict)
 
 
+class VaultConfig(BaseModel):
+    """Where the Obsidian vault lives. Unset means ~/HaloVault."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    path: Path | None = None
+
+
 class ProfileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -96,6 +104,7 @@ class HaloConfig(BaseSettings):
     profiles: dict[str, ProfileConfig] = Field(default_factory=dict)
     api: ApiConfig = Field(default_factory=ApiConfig)
     models: dict[ModelTier, ModelSpec] = Field(default_factory=dict)
+    vault: VaultConfig = Field(default_factory=VaultConfig)
     usd_to_inr: Decimal = Decimal(85)
 
     @model_validator(mode="after")

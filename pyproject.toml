@@ -15,6 +15,7 @@ dependencies = [
     "pywebview>=6.2.1",
     "rich>=15.0.0",
     "uvicorn>=0.54.0",
+    "watchdog>=6.0.0",
 ]
 
 [project.scripts]

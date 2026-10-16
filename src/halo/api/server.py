@@ -329,7 +329,7 @@ def serve(host: str = "127.0.0.1", port: int = 8765) -> None:
     load_env()
     config = load_config()
     token = resolve_token(default_home())
-    app = create_app(lambda: open_halo(config), token=token)
+    app = create_app(lambda: open_halo(config, watch=True), token=token)
     uvicorn.run(app, host=host, port=port, access_log=False)
 
 
