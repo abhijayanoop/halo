@@ -27,14 +27,22 @@ a security reviewer and a visual reviewer. 498 Python and 91 UI tests pass; ruff
 Demo app is Notepad, not Spotify (not installed here). The "done when" loop is covered by `tests/api/test_demo_loop.py` (scripted model, real server, bus and mood director).
 NOT yet done: the real window has never been opened (see Known issues), and nothing has been run against a live model today.
 
+## Day 3 open tasks (updated 2026-10-17)
+1. (Done, hand check left) pywebview + `halo-app` added, UI built; the window starts and stays up 25 s. Check by hand: always-on-top, resize, Enter/Esc, "open Notepad".
+2. PR for `feat/hud-day3` before the redesign starts (ask before pushing).
+R. HUD redesign, `ui/` only, own worktree: R1 character v2 (smooth shapes, no Rough.js; amends `.claude/rules/ui.md`), R2 visual system, R3 bar states (hidden/peek/active/asking, hover via js_api), R4 cards + panel, R5 small delights (cut first).
+3. Core fixes: `retry()` run.started, bounded queues, restart catch-up, grant persistence decision. Also: `/events` raises `WebSocketDisconnect` from `ws.close()` (server.py ~295) when the window closes.
+4. Pause/Stop + cancel path (after 3 and R).
+5. Memory (PLAN "Day 3"), wires the `privacy: local` guard.
+6. Reasoning-off latency check + exact router score (ask before live calls).
+
 ## Next
 - First: install pywebview and run the real window once (see Known issues), then open the PR for `feat/hud-day3` (ask before pushing).
 - Then memory, coding session, security + voice, life skills, evals (see docs/PLAN.md).
 - Re-run the live spike, router eval and cascade table on Token Factory when its key arrives; only those numbers are published.
 
 ## Known issues
-- **Not run for real yet:** `pywebview` is not in `pyproject.toml`/`uv.lock` and `halo-app` is not a script (the network was down for `uv add`). Run `uv add pywebview`,
-  add `halo-app = "halo.app:entry"` under `[project.scripts]`, build the HUD (`cd ui && npm ci && npm run build`), then `uv run halo-app` and try "open Notepad".
+- **Real window:** pywebview and `halo-app` are installed; only the hand check is left (task 1). Build the HUD with `cd ui && npm ci && npm run build`, then `uv run halo-app`.
   For the dev loop use `HALO_UI_URL=http://localhost:5173` with `npm run dev` (proxies to port 8765).
 - Header Pause/Stop and the mic button are not built (no cancel path in the core yet). The Approvals, Memory, Ledger and History tabs are stubs.
 - Event bus queues are unbounded (a stuck client could grow memory).
