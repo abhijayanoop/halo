@@ -1,12 +1,13 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import type { Mood } from "../state/reducer";
-import { type Layers, drawLayers } from "./draw";
+import { BODY_GRADIENT, type Layers, type Shape, drawLayers } from "./draw";
 import { type Motion, moodSpec } from "./spec";
 
-const BOIL_MS = 125; // ~8 redraws a second
 const MAX_MINI_HALOS = 4;
 const ORBIT = { cx: 50, cy: 17, rx: 46, ry: 9, steps: 16 };
+const EYE_TRAVEL = { x: 3.2, y: 2.4 }; // how far the eyes can look, in viewBox units
+const SPRING = { type: "spring", stiffness: 420, damping: 24 } as const;
 
 /** Keyframes that carry a mini-halo once around a flat ellipse above the head,
  *  starting `phase` (0..1) of the way round. It never crosses the face. */
@@ -19,20 +20,6 @@ function orbitFrames(phase: number) {
     cx: angles.map((a) => ORBIT.cx + ORBIT.rx * Math.cos(a)),
     cy: angles.map((a) => ORBIT.cy + ORBIT.ry * Math.sin(a)),
   };
-}
-
-/** Re-seed the sketch ~8 times a second while `active`, so the line shimmers. */
-function useBoil(active: boolean): number {
-  const [seed, setSeed] = useState(1);
-  useEffect(() => {
-    if (!active) {
-      setSeed(1);
-      return;
-    }
-    const timer = setInterval(() => setSeed((s) => (s % 1000) + 1), BOIL_MS);
-    return () => clearInterval(timer);
-  }, [active]);
-  return seed;
 }
 
 /** A random blink every 3 to 6 seconds. */
@@ -59,22 +46,34 @@ function useBlink(enabled: boolean): boolean {
   return blinking;
 }
 
-const group = (layer: Layers[keyof Layers], name: string) => (
-  <g data-layer={name}>
-    {layer.map((p, i) => (
-      <path
-        // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
-        key={i}
-        d={p.d}
-        stroke={p.stroke}
-        strokeWidth={p.strokeWidth}
-        fill={p.fill ?? "none"}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    ))}
-  </g>
-);
+const clamp = (n: number) =>
+  Math.max(-1, Math.min(1, Number.isFinite(n) ? n : 0));
+
+function Shapes({
+  layer,
+  name,
+}: {
+  layer: Layers[keyof Layers];
+  name: string;
+}) {
+  return (
+    <g data-layer={name}>
+      {layer.map((p: Shape, i) => (
+        <path
+          // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
+          key={i}
+          d={p.d}
+          stroke={p.stroke}
+          strokeWidth={p.strokeWidth}
+          fill={p.fill ?? "none"}
+          opacity={p.opacity}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ))}
+    </g>
+  );
+}
 
 function ringMotion(motionKind: Motion, reduced: boolean) {
   if (reduced) return {};
@@ -102,8 +101,19 @@ function ringMotion(motionKind: Motion, reduced: boolean) {
   }
 }
 
-function bodyMotion(motionKind: Motion, reduced: boolean) {
+function bodyMotion(motionKind: Motion, busy: boolean, reduced: boolean) {
   if (reduced) return {};
+  if (busy) {
+    // Working: a small, steady sway, as if humming along.
+    return {
+      animate: { rotate: [-1.6, 1.6, -1.6], y: [0, -1.2, 0] },
+      transition: {
+        duration: 1.8,
+        repeat: Infinity,
+        ease: "easeInOut" as const,
+      },
+    };
+  }
   switch (motionKind) {
     case "bounce":
       return {
@@ -142,6 +152,8 @@ export interface HaloMascotProps {
   agents?: number;
   /** 0..1, only drawn as the progress ring in the focused mood. */
   progress?: number | null;
+  /** Where the eyes look, each -1..1 (x right, y down). Straight ahead if unset. */
+  gaze?: { x: number; y: number } | null;
   size?: number;
 }
 
@@ -149,53 +161,96 @@ export function HaloMascot({
   mood,
   agents = 0,
   progress = null,
+  gaze = null,
   size = 96,
 }: HaloMascotProps) {
   const spec = moodSpec(mood);
   const reduced = useReducedMotion() ?? false;
-  const seed = useBoil(spec.busy && !reduced);
   const blinking = useBlink(spec.eyes === "open" || spec.eyes === "wide");
-  const layers = useMemo(() => drawLayers(spec, seed), [spec, seed]);
+  const layers = useMemo(() => drawLayers(spec), [spec]);
   const miniCount = Math.min(Math.max(agents, 0), MAX_MINI_HALOS);
   const progressValue = progress ?? 0.35;
+  const gx = clamp(gaze?.x ?? 0);
+  const gy = clamp(gaze?.y ?? 0);
+  const glowPx = 2 + spec.glow * 9;
 
   return (
     <motion.svg
       role="img"
       aria-label={spec.label}
       data-mood={mood}
+      data-busy={spec.busy ? "true" : "false"}
       viewBox="0 0 100 100"
       width={size}
       height={size}
       style={{ overflow: "visible" }}
     >
+      <defs>
+        <linearGradient id="halo-body" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor={BODY_GRADIENT.top} />
+          <stop offset="1" stopColor={BODY_GRADIENT.bottom} />
+        </linearGradient>
+      </defs>
+
+      {/* A new mood pops in with a spring instead of snapping. */}
       <motion.g
+        key={mood}
+        initial={reduced ? false : { scale: 0.93 }}
+        animate={{ scale: 1 }}
+        transition={SPRING}
         style={{ transformBox: "fill-box", transformOrigin: "50% 100%" }}
-        {...bodyMotion(spec.motion, reduced)}
       >
-        {group(layers.body, "body")}
         <motion.g
-          style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
-          animate={{ scaleY: blinking ? 0.1 : 1 }}
-          transition={{ duration: 0.08 }}
+          style={{ transformBox: "fill-box", transformOrigin: "50% 100%" }}
+          {...bodyMotion(spec.motion, spec.busy, reduced)}
         >
-          {group(layers.eyes, "eyes")}
+          <Shapes layer={layers.body} name="body" />
+          <motion.g
+            data-layer="eyes"
+            data-gaze-x={gx}
+            data-gaze-y={gy}
+            animate={{ x: gx * EYE_TRAVEL.x, y: gy * EYE_TRAVEL.y }}
+            transition={SPRING}
+          >
+            <motion.g
+              style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
+              animate={{ scaleY: blinking ? 0.1 : 1 }}
+              transition={{ duration: 0.08 }}
+            >
+              {layers.eyes.map((p, i) => (
+                <path
+                  // biome-ignore lint/suspicious/noArrayIndexKey: paths are positional
+                  key={i}
+                  d={p.d}
+                  stroke={p.stroke}
+                  strokeWidth={p.strokeWidth}
+                  fill={p.fill ?? "none"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              ))}
+            </motion.g>
+          </motion.g>
+          <Shapes layer={layers.brow} name="brow" />
+          <Shapes layer={layers.mouth} name="mouth" />
+          {spec.accessory && (
+            <g data-accessory={spec.accessory}>
+              <Shapes layer={layers.accessory} name="accessory" />
+            </g>
+          )}
         </motion.g>
-        {group(layers.brow, "brow")}
-        {group(layers.mouth, "mouth")}
-        {spec.accessory && (
-          <g data-accessory={spec.accessory}>
-            {group(layers.accessory, "accessory")}
-          </g>
-        )}
       </motion.g>
 
       <motion.g
-        style={{ transformBox: "fill-box", transformOrigin: "50% 50%" }}
+        style={{
+          transformBox: "fill-box",
+          transformOrigin: "50% 50%",
+          filter: `drop-shadow(0 0 ${glowPx}px ${spec.ring})`,
+        }}
         opacity={spec.ringStyle === "progress" ? 0.25 : 1}
         {...ringMotion(spec.motion, reduced)}
       >
-        {group(layers.ring, "ring")}
+        <Shapes layer={layers.ring} name="ring" />
       </motion.g>
 
       {spec.ringStyle === "progress" && (
@@ -203,11 +258,11 @@ export function HaloMascot({
           data-layer="progress"
           cx={50}
           cy={14}
-          rx={42 / 2}
-          ry={12 / 2}
+          rx={22}
+          ry={6.5}
           fill="none"
           stroke={spec.ring}
-          strokeWidth={3.6}
+          strokeWidth={3.8}
           strokeLinecap="round"
           pathLength={1}
           strokeDasharray={`${progressValue} 1`}

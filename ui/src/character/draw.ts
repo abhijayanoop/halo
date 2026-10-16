@@ -1,294 +1,335 @@
-// Draws Halo's layers as sketchy paths with Rough.js. A different `seed` gives
-// a different wobble of the same shape, which is what makes the outline "boil".
+// Draws Halo's layers as clean vector paths. Nothing here is random: the same
+// spec always gives the same shapes, and all motion is done by the mascot.
 //
-// The bean's body is light with dark ink, but accessories mostly sit on the dark
-// glass bar, so they are outlined in a light tone and filled with colour.
-import rough from "roughjs";
-import type { Options, PathInfo } from "roughjs/bin/core";
-import type { Accessory, Eyes, MoodSpec, Mouth } from "./spec";
+// The body is a light squircle with dark ink, but accessories mostly sit on the
+// dark glass bar, so they are outlined in a light tone and filled with colour.
+import type { Accessory, Brow, Eyes, MoodSpec, Mouth } from "./spec";
 
-const generator = rough.generator();
-
-const INK = "#23232e";
-const BODY = "#f6f1e7";
-const LIGHT = "#e8ecf4"; // outline for things drawn on the dark bar
-const EYE_L = { x: 40, y: 54 };
-const EYE_R = { x: 62, y: 54 };
+export interface Shape {
+  d: string;
+  stroke: string;
+  strokeWidth: number;
+  fill?: string;
+  opacity?: number;
+}
 
 export interface Layers {
-  body: PathInfo[];
-  eyes: PathInfo[];
-  brow: PathInfo[];
-  mouth: PathInfo[];
-  ring: PathInfo[];
-  accessory: PathInfo[];
+  body: Shape[];
+  eyes: Shape[];
+  brow: Shape[];
+  mouth: Shape[];
+  ring: Shape[];
+  accessory: Shape[];
 }
 
-const line = (seed: number, extra: Options = {}): Options => ({
-  seed,
-  roughness: 1.3,
-  strokeWidth: 2.2,
+export const BODY_GRADIENT = { top: "#fffdf8", bottom: "#ece4d3" };
+const INK = "#23232e";
+const LIGHT = "#e8ecf4"; // outline for things drawn on the dark bar
+const BLUSH = "#ff9db0";
+const EYE_L = { x: 39, y: 56 };
+const EYE_R = { x: 61, y: 56 };
+const NONE = "none";
+
+const BODY_D =
+  "M 24 58 C 24 38, 37 28, 50 28 C 63 28, 76 38, 76 58 C 76 78, 64 87, 50 87 C 36 87, 24 78, 24 58 Z";
+
+// Shape helpers: every shape is one path string.
+const ellipseD = (cx: number, cy: number, rx: number, ry: number) =>
+  `M ${cx - rx} ${cy} a ${rx} ${ry} 0 1 0 ${2 * rx} 0 a ${rx} ${ry} 0 1 0 ${-2 * rx} 0 Z`;
+const circleD = (cx: number, cy: number, r: number) => ellipseD(cx, cy, r, r);
+const polyD = (points: [number, number][]) =>
+  `${points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ")} Z`;
+const lineD = (points: [number, number][]) =>
+  points.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x} ${y}`).join(" ");
+const starD = (x: number, y: number, r: number) =>
+  `M ${x} ${y - r} Q ${x} ${y} ${x + r} ${y} Q ${x} ${y} ${x} ${y + r} Q ${x} ${y} ${x - r} ${y} Q ${x} ${y} ${x} ${y - r} Z`;
+
+const ink = (d: string, width = 2.4): Shape => ({
+  d,
   stroke: INK,
-  ...extra,
+  strokeWidth: width,
 });
-const solid = (seed: number, fill: string, extra: Options = {}): Options =>
-  line(seed, { fill, fillStyle: "solid", ...extra });
-// Accessory styles: light outline, coloured fill.
-const outline = (seed: number, extra: Options = {}): Options =>
-  line(seed, { stroke: LIGHT, strokeWidth: 2, ...extra });
-const filled = (seed: number, fill: string, extra: Options = {}): Options =>
-  outline(seed, { fill, fillStyle: "solid", ...extra });
+const solidInk = (d: string): Shape => ({
+  d,
+  stroke: INK,
+  strokeWidth: 1,
+  fill: INK,
+});
+const shine = (cx: number, cy: number, r: number): Shape => ({
+  d: circleD(cx, cy, r),
+  stroke: NONE,
+  strokeWidth: 0,
+  fill: "#ffffff",
+});
+const outline = (d: string, width = 2): Shape => ({
+  d,
+  stroke: LIGHT,
+  strokeWidth: width,
+});
+const filled = (d: string, fill: string, width = 2): Shape => ({
+  d,
+  stroke: LIGHT,
+  strokeWidth: width,
+  fill,
+});
 
-const paths = (...drawables: ReturnType<typeof generator.path>[]): PathInfo[] =>
-  drawables.flatMap((d) => generator.toPaths(d));
-
-const BEAN =
-  "M 22 58 C 20 34, 40 26, 54 28 C 74 30, 82 46, 78 64 C 74 82, 54 88, 40 84 C 28 80, 24 72, 22 58 Z";
-
-function spiral(cx: number, cy: number): [number, number][] {
+function spiral(cx: number, cy: number): string {
   const points: [number, number][] = [];
-  for (let t = 0; t <= 3 * Math.PI; t += 0.5) {
-    const r = 1 + t * 0.9;
+  for (let t = 0; t <= 3 * Math.PI; t += 0.4) {
+    const r = 0.8 + t * 0.95;
     points.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]);
   }
-  return points;
+  return lineD(points);
 }
 
-function drawEyes(kind: Eyes, seed: number): PathInfo[] {
-  const both = (
-    draw: (x: number, y: number) => ReturnType<typeof generator.path>,
-  ) => paths(draw(EYE_L.x, EYE_L.y), draw(EYE_R.x, EYE_R.y));
+/** A glossy eye: a dark oval with a bright highlight, which is what makes it look alive. */
+function glossyEye(
+  x: number,
+  y: number,
+  rx: number,
+  ry: number,
+  dx = 0,
+  dy = 0,
+): Shape[] {
+  const cx = x + dx;
+  const cy = y + dy;
+  return [
+    solidInk(ellipseD(cx, cy, rx, ry)),
+    shine(cx - rx * 0.32, cy - ry * 0.4, rx * 0.34),
+    shine(cx + rx * 0.35, cy + ry * 0.38, rx * 0.16),
+  ];
+}
+
+function drawEyes(kind: Eyes): Shape[] {
+  const both = (draw: (x: number, y: number) => Shape[]) => [
+    ...draw(EYE_L.x, EYE_L.y),
+    ...draw(EYE_R.x, EYE_R.y),
+  ];
   switch (kind) {
     case "open":
-      return both((x, y) => generator.ellipse(x, y, 7, 10, solid(seed, INK)));
+      return both((x, y) => glossyEye(x, y, 5.6, 8));
     case "wide":
-      return both((x, y) => generator.ellipse(x, y, 10, 14, solid(seed, INK)));
+      return both((x, y) => glossyEye(x, y, 6.8, 10));
     case "upleft":
       // Looking up and to the left: pupils pushed well off-centre.
-      return both((x, y) =>
-        generator.ellipse(x - 4, y - 5, 7, 10, solid(seed, INK)),
-      );
+      return both((x, y) => glossyEye(x, y, 5.6, 8, -3.5, -4));
     case "squint":
-      return both((x, y) =>
-        generator.path(
-          `M ${x - 5} ${y} L ${x + 5} ${y}`,
-          line(seed, { strokeWidth: 3 }),
-        ),
-      );
+      return both((x, y) => [
+        ink(`M ${x - 6} ${y + 1} Q ${x} ${y - 4} ${x + 6} ${y + 1}`, 3.6),
+        ink(`M ${x - 5} ${y + 3} Q ${x} ${y + 5} ${x + 5} ${y + 3}`, 1.8),
+      ]);
     case "closed":
-      return both((x, y) =>
-        generator.path(
-          `M ${x - 5} ${y} Q ${x} ${y + 4} ${x + 5} ${y}`,
-          line(seed),
-        ),
-      );
+      return both((x, y) => [
+        ink(`M ${x - 6} ${y} Q ${x} ${y + 5} ${x + 6} ${y}`, 2.6),
+      ]);
     case "happy":
-      return both((x, y) =>
-        generator.path(
-          `M ${x - 5} ${y + 2} Q ${x} ${y - 6} ${x + 5} ${y + 2}`,
-          line(seed, { strokeWidth: 2.8 }),
-        ),
-      );
+      return both((x, y) => [
+        ink(`M ${x - 6} ${y + 3} Q ${x} ${y - 7} ${x + 6} ${y + 3}`, 3.2),
+      ]);
     case "spiral":
-      return both((x, y) =>
-        generator.linearPath(spiral(x, y), line(seed, { strokeWidth: 1.6 })),
-      );
+      return both((x, y) => [ink(spiral(x, y), 1.8)]);
   }
 }
 
-function drawMouth(kind: Mouth, seed: number): PathInfo[] {
+function drawBrows(kind: Brow): Shape[] {
+  switch (kind) {
+    case "none":
+      return [];
+    case "raised":
+      return [
+        ink("M 32 42 Q 39 37 46 42", 2.2),
+        ink("M 54 42 Q 61 37 68 42", 2.2),
+      ];
+    case "furrow":
+      return [ink("M 32 41 L 46 46", 2.6), ink("M 68 41 L 54 46", 2.6)];
+    case "worry":
+      return [ink("M 32 46 L 46 41", 2.4), ink("M 68 46 L 54 41", 2.4)];
+  }
+}
+
+const cheeks = (): Shape[] => [
+  {
+    d: ellipseD(31, 67, 4.2, 2.6),
+    stroke: NONE,
+    strokeWidth: 0,
+    fill: BLUSH,
+    opacity: 0.45,
+  },
+  {
+    d: ellipseD(69, 67, 4.2, 2.6),
+    stroke: NONE,
+    strokeWidth: 0,
+    fill: BLUSH,
+    opacity: 0.45,
+  },
+];
+
+function drawMouth(kind: Mouth): Shape[] {
   switch (kind) {
     case "smile":
-      return paths(generator.path("M 44 70 Q 51 77 58 70", line(seed)));
+      return [ink("M 43 69 Q 50 76 57 69"), ...cheeks()];
     case "grin":
-      return paths(generator.path("M 42 69 Q 51 84 60 69 Z", solid(seed, INK)));
+      return [solidInk("M 41 67 Q 50 83 59 67 Z"), ...cheeks()];
+    case "smirk":
+      return [ink("M 43 70 Q 51 77 59 67"), ...cheeks()];
     case "o":
-      return paths(generator.ellipse(51, 73, 6, 7, solid(seed, INK)));
+      return [solidInk(ellipseD(50, 72, 4.4, 5.6))];
     case "flat":
-      return paths(
-        generator.linearPath(
-          [
-            [45, 72],
-            [57, 72],
-          ],
-          line(seed),
-        ),
-      );
+      return [ink("M 44 72 L 56 72")];
     case "frown":
-      return paths(generator.path("M 44 76 Q 51 68 58 76", line(seed)));
+      return [ink("M 43 75 Q 50 68 57 75")];
     case "tongue":
-      return paths(
-        generator.ellipse(
-          51,
-          80,
-          9,
-          9,
-          solid(seed, "#ff7f98", { strokeWidth: 1.4 }),
-        ),
-        generator.path("M 43 70 Q 51 77 59 70", line(seed)),
-      );
+      return [
+        {
+          d: ellipseD(50, 76, 5, 5.6),
+          stroke: INK,
+          strokeWidth: 1.4,
+          fill: "#ff7f98",
+        },
+        ink("M 42 69 Q 50 76 58 69"),
+        ...cheeks(),
+      ];
     case "none":
       return [];
   }
 }
 
-const star = (x: number, y: number, r: number) =>
-  `M ${x} ${y - r} L ${x + r / 4} ${y - r / 4} L ${x + r} ${y} L ${x + r / 4} ${y + r / 4} L ${x} ${y + r} L ${x - r / 4} ${y + r / 4} L ${x - r} ${y} L ${x - r / 4} ${y - r / 4} Z`;
-
 // Accessories keep clear of the face (x 30-72, y 44-80) so the mood stays readable.
-function drawAccessory(kind: Accessory | null, seed: number): PathInfo[] {
+function drawAccessory(kind: Accessory | null): Shape[] {
   switch (kind) {
     case null:
       return [];
     case "zzz":
-      return paths(
-        generator.linearPath(
-          [
+      return [
+        outline(
+          lineD([
             [74, 26],
             [84, 26],
             [74, 36],
             [84, 36],
-          ],
-          outline(seed, { strokeWidth: 2.6 }),
+          ]),
+          2.6,
         ),
-        generator.linearPath(
-          [
+        outline(
+          lineD([
             [88, 10],
             [95, 10],
             [88, 17],
             [95, 17],
-          ],
-          outline(seed, { strokeWidth: 2.2 }),
+          ]),
+          2.2,
         ),
-      );
+      ];
     case "thoughts":
-      return paths(
-        generator.circle(80, 42, 5, filled(seed, "#c9d4ff")),
-        generator.circle(86, 31, 8, filled(seed, "#c9d4ff")),
-        generator.circle(93, 17, 13, filled(seed, "#e8eeff")),
-      );
+      return [
+        filled(circleD(80, 42, 4), "#c9d4ff"),
+        filled(circleD(86, 31, 6.5), "#c9d4ff"),
+        filled(circleD(93, 17, 11), "#e8eeff"),
+      ];
     case "magnifier":
-      return paths(
-        generator.circle(
-          88,
-          64,
-          20,
-          filled(seed, "#9fd8ff55", { strokeWidth: 2.6 }),
+      return [
+        filled(circleD(88, 64, 14), "#9fd8ff66", 2.6),
+        outline(
+          lineD([
+            [98, 74],
+            [105, 85],
+          ]),
+          3.8,
         ),
-        generator.linearPath(
-          [
-            [95, 73],
-            [104, 85],
-          ],
-          outline(seed, { strokeWidth: 3.6 }),
-        ),
-      );
+      ];
     case "pencil":
-      return paths(
-        generator.rectangle(2, 60, 16, 22, filled(seed, "#fffdf2", { stroke: LIGHT })),
-        generator.polygon(
-          [
+      return [
+        filled(
+          polyD([
             [76, 82],
             [86, 64],
             [98, 70],
             [88, 88],
-          ],
-          filled(seed, "#ffd45e", { strokeWidth: 2.2 }),
+          ]),
+          "#ffd45e",
+          2.2,
         ),
-        generator.polygon(
-          [
+        filled(
+          polyD([
             [76, 82],
             [88, 88],
             [72, 94],
-          ],
-          filled(seed, "#f4a38c"),
+          ]),
+          "#f4a38c",
         ),
-      );
+      ];
     case "hand":
-      return paths(
-        generator.path(
-          "M 76 76 Q 92 72 93 50",
-          outline(seed, { strokeWidth: 3.4 }),
-        ),
-        generator.circle(93, 42, 15, filled(seed, BODY)),
-        generator.linearPath(
-          [
+      return [
+        outline("M 76 76 Q 92 72 93 50", 3.6),
+        filled(circleD(93, 42, 12), "#fffdf8"),
+        outline(
+          lineD([
             [88, 36],
             [87, 28],
-          ],
-          outline(seed, { strokeWidth: 2.4 }),
+          ]),
+          2.4,
         ),
-        generator.linearPath(
-          [
+        outline(
+          lineD([
             [93, 34],
             [93, 25],
-          ],
-          outline(seed, { strokeWidth: 2.4 }),
+          ]),
+          2.4,
         ),
-        generator.linearPath(
-          [
+        outline(
+          lineD([
             [98, 36],
             [99, 28],
-          ],
-          outline(seed, { strokeWidth: 2.4 }),
+          ]),
+          2.4,
         ),
-      );
+      ];
     case "shield":
-      return paths(
-        generator.path(
+      return [
+        filled(
           "M 82 42 L 102 42 L 102 60 Q 102 73 92 80 Q 82 73 82 60 Z",
-          filled(seed, "#ff7a88", { strokeWidth: 2.4 }),
+          "#ff7a88",
+          2.4,
         ),
-      );
+      ];
     case "sparkles":
-      return paths(
-        generator.path(
-          star(10, 28, 10),
-          filled(seed, "#ffe27a", { strokeWidth: 1.6 }),
-        ),
-        generator.path(
-          star(92, 36, 9),
-          filled(seed, "#ffe27a", { strokeWidth: 1.6 }),
-        ),
-        generator.path(
-          star(84, 8, 7),
-          filled(seed, "#ffe27a", { strokeWidth: 1.6 }),
-        ),
-      );
+      return [
+        filled(starD(10, 28, 9), "#ffe27a", 1.4),
+        filled(starD(92, 36, 8), "#ffe27a", 1.4),
+        filled(starD(84, 8, 6), "#ffe27a", 1.4),
+      ];
     case "sweat":
-      return paths(
-        generator.path(
-          "M 86 26 Q 95 38 86 46 Q 77 38 86 26 Z",
-          filled(seed, "#8ad0ff", { strokeWidth: 1.8 }),
-        ),
-      );
+      return [filled("M 86 26 Q 95 38 86 46 Q 77 38 86 26 Z", "#8ad0ff", 1.8)];
   }
 }
 
-export function drawLayers(spec: MoodSpec, seed: number): Layers {
+export function drawLayers(spec: MoodSpec): Layers {
   return {
-    // One stroke pass on the body: Rough.js's double stroke leaves a visible
-    // spike where the outline starts and ends.
-    body: paths(
-      generator.path(
-        BEAN,
-        solid(seed, BODY, { strokeWidth: 2.6, disableMultiStroke: true }),
-      ),
-    ),
-    eyes: drawEyes(spec.eyes, seed),
-    brow: spec.eyebrow
-      ? paths(generator.path("M 56 44 L 68 40", line(seed, { strokeWidth: 2 })))
-      : [],
-    mouth: drawMouth(spec.mouth, seed),
-    ring: paths(
-      generator.ellipse(
-        50,
-        14,
-        42,
-        12,
-        line(seed, { stroke: spec.ring, strokeWidth: 3.2 }),
-      ),
-    ),
-    accessory: drawAccessory(spec.accessory, seed),
+    body: [
+      {
+        d: BODY_D,
+        stroke: "#cfc6b3",
+        strokeWidth: 1.4,
+        fill: "url(#halo-body)",
+      },
+      // A soft highlight on the top left, which gives the body its volume.
+      {
+        d: "M 32 46 Q 33 36 44 33",
+        stroke: "#ffffff",
+        strokeWidth: 3,
+        opacity: 0.7,
+      },
+    ],
+    eyes: drawEyes(spec.eyes),
+    brow: drawBrows(spec.brow),
+    mouth: drawMouth(spec.mouth),
+    ring: [
+      {
+        d: ellipseD(50, 14, 22, 6.5),
+        stroke: spec.ring,
+        strokeWidth: 3.4,
+      },
+    ],
+    accessory: drawAccessory(spec.accessory),
   };
 }

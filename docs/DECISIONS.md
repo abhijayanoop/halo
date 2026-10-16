@@ -40,3 +40,4 @@ One line each: date — decision — why — rejected alternative.
 - 2026-10-12 — `/events` sends a late or reconnecting HUD the current mood and every open approval card — a dropped socket would otherwise leave a run paused with no card — replaying the whole bus history
 - 2026-10-12 — The HUD is served by the local server (same origin) and gets the token in the URL hash — no CORS, no `file://` null Origin, and the hash is never sent in requests, logs or Referer — `file://`, or the token in a query string
 
+- 2026-10-17 — Mascot shapes are clean SVG paths animated with Framer Motion springs; Rough.js and the 8 fps redraw are gone; the one test that asserted the redraw was replaced (approved by the user) — the sketchy wobble read as unfinished on the glass bar, and each mood now has its own eyes + mouth + brow so the face reads without the accessory — keeping Rough.js for the outline

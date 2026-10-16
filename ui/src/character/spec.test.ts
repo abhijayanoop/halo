@@ -75,3 +75,26 @@ describe("moodSpec", () => {
     ]);
   });
 });
+
+describe("moodSpec expressions (v2)", () => {
+  it("gives every mood a face that is readable without its accessory", () => {
+    const faces = MOODS.map((m) => {
+      const s = moodSpec(m);
+      return `${s.eyes}|${s.mouth}|${s.brow}`;
+    });
+    expect(new Set(faces).size).toBe(MOODS.length);
+  });
+
+  it("has a glow strength between 0 and 1 for every mood", () => {
+    for (const mood of MOODS) {
+      const { glow } = moodSpec(mood);
+      expect(glow).toBeGreaterThanOrEqual(0);
+      expect(glow).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("glows brighter when Halo is asking or guarding than when idle", () => {
+    expect(moodSpec("asking").glow).toBeGreaterThan(moodSpec("idle").glow);
+    expect(moodSpec("guarding").glow).toBeGreaterThan(moodSpec("idle").glow);
+  });
+});

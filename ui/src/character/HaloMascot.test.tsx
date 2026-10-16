@@ -61,23 +61,42 @@ describe("HaloMascot", () => {
   });
 });
 
-describe("the boiling outline", () => {
+describe("the eyes follow the cursor", () => {
+  it("looks where the gaze points, clamped to the unit square", () => {
+    const { container, rerender } = render(
+      <HaloMascot mood="idle" gaze={{ x: 0.5, y: -0.5 }} />,
+    );
+    const eyes = () => container.querySelector('[data-layer="eyes"]');
+    expect(eyes()).toHaveAttribute("data-gaze-x", "0.5");
+    expect(eyes()).toHaveAttribute("data-gaze-y", "-0.5");
+    rerender(<HaloMascot mood="idle" gaze={{ x: 9, y: -9 }} />);
+    expect(eyes()).toHaveAttribute("data-gaze-x", "1");
+    expect(eyes()).toHaveAttribute("data-gaze-y", "-1");
+  });
+
+  it("looks straight ahead when there is no gaze", () => {
+    const { container } = render(<HaloMascot mood="idle" />);
+    const eyes = container.querySelector('[data-layer="eyes"]');
+    expect(eyes).toHaveAttribute("data-gaze-x", "0");
+  });
+});
+
+describe("the animation timers", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("redraws about 8 times a second while busy", () => {
-    const { container } = render(<HaloMascot mood="thinking" />);
-    const first = bodyPath(container);
-    act(() => {
-      vi.advanceTimersByTime(130);
-    });
-    const second = bodyPath(container);
-    act(() => {
-      vi.advanceTimersByTime(130);
-    });
-    const third = bodyPath(container);
-    expect(first).toBeTruthy();
-    expect(new Set([first, second, third]).size).toBeGreaterThan(1);
+  it("marks busy moods as animating and idle or asleep as still", () => {
+    for (const mood of ["thinking", "focused", "delegating", "careful"] as const) {
+      const { container, unmount } = render(<HaloMascot mood={mood} />);
+      expect(screen.getByRole("img")).toHaveAttribute("data-busy", "true");
+      unmount();
+      expect(container.querySelector("svg")).toBeNull();
+    }
+    for (const mood of ["idle", "asleep"] as const) {
+      const { unmount } = render(<HaloMascot mood={mood} />);
+      expect(screen.getByRole("img")).toHaveAttribute("data-busy", "false");
+      unmount();
+    }
   });
 
   it("holds perfectly still when idle or asleep", () => {
