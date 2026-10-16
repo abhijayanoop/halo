@@ -39,3 +39,25 @@ def test_opening_and_closing_the_event_stream_repeatedly_never_raises(
                 "/events", headers={"Host": "127.0.0.1:8000"}
             ):
                 pass
+
+
+def test_a_client_that_vanished_before_the_close_does_not_raise(
+    halo_cm_factory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the socket is already gone, ws.close() raises WebSocketDisconnect; the
+    handler must swallow it instead of logging an ASGI exception on shutdown."""
+    from starlette.websockets import WebSocketDisconnect
+
+    async def gone(self: WebSocket, *args, **kwargs) -> None:
+        raise WebSocketDisconnect(code=1006)
+
+    monkeypatch.setattr(WebSocket, "close", gone)
+    app = create_app(halo_cm_factory())
+    client = TestClient(
+        app, base_url="http://127.0.0.1:8000", raise_server_exceptions=True
+    )
+    with (
+        client,
+        client.websocket_connect("/events", headers={"Host": "127.0.0.1:8000"}),
+    ):
+        pass

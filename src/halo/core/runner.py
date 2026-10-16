@@ -36,6 +36,19 @@ class RunOutcome:
     error: str | None = None
 
 
+def approval_requested_event(
+    run_id: str, request: ApprovalRequest, step_index: int
+) -> HaloEvent:
+    """The event that puts a permission card on screen. One builder, so a card
+    restored after a restart is the same as one asked live."""
+    return make_event(
+        run_id,
+        "approval.requested",
+        f"Can I run {request.action}?",
+        payload={**request.model_dump(mode="json"), "step_index": step_index},
+    )
+
+
 def _failure_reason(exc: Exception) -> str:
     """A fixed plain-language reason per kind of failure. The exception text is
     logged but never put in an event: events reach the JSONL file and the
@@ -107,7 +120,18 @@ class HaloRunner:
         return await self._drive(run_id, Command(resume=decision.grant))
 
     async def retry(self, run_id: str) -> RunOutcome:
-        """Continue a failed run from its last checkpoint."""
+        """Continue a failed run from its last checkpoint. It announces itself with
+        a `run.started` (marked `retry`), so listeners drop the old failure."""
+        snapshot = await self._graph.aget_state(self._config(run_id))
+        request = str(snapshot.values.get("request") or "")
+        self._emit(
+            make_event(
+                run_id,
+                "run.started",
+                request[:80] or "Retrying",
+                payload={"request": request, "retry": True},
+            )
+        )
         return await self._drive(run_id, None)
 
     async def pending_approval(self, run_id: str) -> ApprovalRequest | None:
@@ -116,6 +140,32 @@ class HaloRunner:
             for interruption in task.interrupts:
                 return ApprovalRequest.model_validate(interruption.value["request"])
         return None
+
+    async def paused_approvals(self, limit: int = 50) -> list[HaloEvent]:
+        """An `approval.requested` event for every run that is waiting for a
+        yes in the checkpoint, newest runs first. After a restart this is how a
+        new HUD learns about cards that were open when Halo quit."""
+        # Collect the run ids first: querying a run while the listing is still open
+        # would wait on the checkpointer's own lock forever.
+        # A run makes about ten checkpoints and a pause is its newest, so the latest
+        # `limit * 10` checkpoints cover the latest `limit` runs.
+        run_ids: list[str] = []
+        async for item in self._graph.checkpointer.alist(None, limit=limit * 10):
+            run_id = str(item.config["configurable"]["thread_id"])
+            if run_id not in run_ids:
+                run_ids.append(run_id)
+        found: list[HaloEvent] = []
+        for run_id in run_ids:
+            snapshot = await self._graph.aget_state(self._config(run_id))
+            for task in snapshot.tasks:
+                for interruption in task.interrupts:
+                    value = interruption.value
+                    request = ApprovalRequest.model_validate(value["request"])
+                    found.append(
+                        approval_requested_event(run_id, request, value["step_index"])
+                    )
+                    break
+        return found
 
     async def _drive(self, run_id: str, graph_input: Any) -> RunOutcome:
         try:
@@ -136,17 +186,7 @@ class HaloRunner:
         if interruptions := result.get("__interrupt__"):
             value = interruptions[0].value
             request = ApprovalRequest.model_validate(value["request"])
-            self._emit(
-                make_event(
-                    run_id,
-                    "approval.requested",
-                    f"Can I run {request.action}?",
-                    payload={
-                        **request.model_dump(mode="json"),
-                        "step_index": value["step_index"],
-                    },
-                )
-            )
+            self._emit(approval_requested_event(run_id, request, value["step_index"]))
             return RunOutcome(run_id, "paused", approval=request)
 
         results = result["results"]

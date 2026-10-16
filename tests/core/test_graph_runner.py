@@ -231,7 +231,10 @@ async def test_model_outage_fails_the_run_and_it_can_be_retried_from_the_checkpo
     assert retried.state == "finished"
     assert len(spawned) == 1
     types = _types(events)
-    assert types.count("run.started") == 1
+    # The retry announces itself with a second run.started, marked as a retry.
+    assert types.count("run.started") == 2
+    retry_started = [e for e in events if e.type == "run.started"][1]
+    assert retry_started.payload["retry"] is True
     assert types.count("run.failed") == 1
     assert types[-1] == "run.finished"
 

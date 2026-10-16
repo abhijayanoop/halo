@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, field_validator
 from starlette.types import ASGIApp, Receive, Scope, Send
+from starlette.websockets import WebSocketDisconnect
 
 from halo.bootstrap import Halo
 from halo.core.contracts import ApprovalDecision, ApprovalGrant, HaloEvent
@@ -193,6 +194,9 @@ def create_app(
         async with open_halo_cm() as halo, halo.bus.subscribe() as watch:
             app.state.halo = halo
             app.state.catchup = catchup
+            # Cards that were open when Halo last quit are still waiting: offer them.
+            for restored in await halo.runner.paused_approvals():
+                catchup.feed(restored)
 
             async def track() -> None:
                 while True:
@@ -291,7 +295,8 @@ def create_app(
                 for task in (pump_task, receive_task):
                     task.add_done_callback(_retrieve)
                     task.cancel()
-                with contextlib.suppress(RuntimeError):
+                # The client may already be gone: closing then raises, which is fine.
+                with contextlib.suppress(RuntimeError, WebSocketDisconnect):
                     await ws.close()
 
     if static_dir is not None:
