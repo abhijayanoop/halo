@@ -234,6 +234,7 @@ def main() -> int:
         frameless=True,
         on_top=True,
         easy_drag=True,
+        transparent=True,
         js_api=api,
     )
     api._attach(window)  # pyright: ignore[reportPrivateUsage]

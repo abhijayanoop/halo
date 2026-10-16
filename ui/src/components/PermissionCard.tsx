@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  type CSSProperties,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { Api, Grant } from "../api";
 import type { PendingApproval, Risk } from "../state/reducer";
 
@@ -6,6 +13,13 @@ const RISK_STYLE: Record<Risk, string> = {
   low: "bg-emerald-400/20 text-emerald-200",
   medium: "bg-amber-400/20 text-amber-200",
   high: "bg-red-400/25 text-red-200",
+};
+
+// The card takes the colour of the risk, so a high-risk ask looks different at a glance.
+const RISK_COLOR: Record<Risk, string> = {
+  low: "#3ddc97",
+  medium: "#ffb020",
+  high: "#ff4d5e",
 };
 
 export function PermissionCard({
@@ -51,7 +65,8 @@ export function PermissionCard({
       if (event.repeat) return; // a held-down key must not answer twice
       // Enter on a focused button presses that button, whichever it is: the card's
       // own shortcut must never turn Enter-on-Deny into an allow.
-      if (event.key === "Enter" && event.target instanceof HTMLButtonElement) return;
+      if (event.key === "Enter" && event.target instanceof HTMLButtonElement)
+        return;
       if (event.key === "Enter") {
         event.preventDefault();
         void answer("allow_once");
@@ -64,28 +79,40 @@ export function PermissionCard({
     return () => document.removeEventListener("keydown", onKey);
   }, [answer]);
 
+  const color = RISK_COLOR[approval.risk];
+
   return (
-    <section
+    <motion.section
       aria-label="Permission request"
-      className="flex h-[140px] w-[380px] flex-col gap-1.5 rounded-2xl border border-amber-300/40 bg-slate-900/90 p-3 text-slate-100 shadow-xl backdrop-blur"
+      data-risk={approval.risk}
+      initial={{ opacity: 0, scale: 0.96 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: "spring", stiffness: 420, damping: 28 }}
+      style={{ "--ring": color } as CSSProperties}
+      className="glass flex h-[140px] w-[380px] flex-col gap-1.5 rounded-2xl p-3 text-ink"
     >
       <div className="flex items-center gap-2">
         <span
+          aria-hidden
+          className="h-2 w-2 shrink-0 animate-pulse rounded-full"
+          style={{ background: color }}
+        />
+        <span
           data-testid="card-action"
-          className="truncate text-sm font-medium"
+          className="truncate text-sm font-semibold"
         >
           {approval.action}
         </span>
         <span
           data-testid="card-risk"
-          className={`rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide ${RISK_STYLE[approval.risk]}`}
+          className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${RISK_STYLE[approval.risk]}`}
         >
           {approval.risk} risk
         </span>
         {total > 1 && (
           <span
             data-testid="card-count"
-            className="ml-auto text-[11px] text-slate-400"
+            className="ml-auto text-[11px] text-ink-dim"
           >
             1 of {total}
           </span>
@@ -94,7 +121,7 @@ export function PermissionCard({
 
       <code
         data-testid="card-detail"
-        className="line-clamp-2 flex-1 break-all rounded bg-black/30 px-2 py-1 text-[12px] text-slate-200"
+        className="line-clamp-2 flex-1 break-all rounded-lg bg-black/35 px-2.5 py-1.5 font-mono text-[11.5px] leading-snug text-ink"
       >
         {approval.detail}
       </code>
@@ -105,31 +132,33 @@ export function PermissionCard({
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => void answer("allow_once")}
-          className="rounded-md bg-amber-400 px-3 py-1 text-xs font-medium text-slate-900 hover:bg-amber-300"
+          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-900 transition hover:brightness-110 active:scale-95"
+          style={{ background: color }}
         >
-          Allow once <kbd className="opacity-60">↵</kbd>
+          Allow once{" "}
+          <kbd className="keycap !border-black/20 !bg-black/15">↵</kbd>
         </button>
         <button
           type="button"
           onClick={() => void answer("deny")}
-          className="rounded-md bg-white/10 px-3 py-1 text-xs hover:bg-white/20"
+          className="flex items-center gap-1.5 rounded-lg bg-white/10 px-3 py-1.5 text-xs font-medium transition hover:bg-white/20 active:scale-95"
         >
-          Deny <kbd className="opacity-60">Esc</kbd>
+          Deny <kbd className="keycap">Esc</kbd>
         </button>
         {approval.risk !== "high" && (
           <button
             type="button"
             onClick={() => void answer("always_for_task")}
-            className="ml-auto rounded-md px-2 py-1 text-xs text-slate-400 hover:text-slate-200"
+            className="ml-auto rounded-lg px-2 py-1.5 text-xs text-ink-dim transition hover:text-ink"
           >
             Always for this task
           </button>
         )}
       </div>
-    </section>
+    </motion.section>
   );
 }
