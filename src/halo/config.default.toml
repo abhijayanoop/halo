@@ -50,6 +50,13 @@ id = "UNSET-nano-omni-model-id"
 base_url = "https://integrate.api.nvidia.com/v1"
 key_env = "NVIDIA_API_KEY"
 
+# Nemotron thinks before it answers, which cost a Nano call about 4 s here. With
+# thinking off a call took under 1 s and the router still scored 20/20 (dev numbers
+# on this profile only). Sent with every request, so Super and Ultra also answer
+# without thinking: re-check planning quality on Token Factory before relying on it.
+[profiles.nvidia-api.api.extra_body.chat_template_kwargs]
+enable_thinking = false
+
 # nvidia/nemotron-nano-3-30b-a3b is listed but returns 404 for our account, so the
 # same-size 3.5 Lightning model stands in for Nano during development.
 [profiles.nvidia-api.models.nano]
