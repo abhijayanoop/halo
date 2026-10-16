@@ -8,7 +8,7 @@ by `HaloRunner`, not by nodes. Nodes emit only step and tool events.
 
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -41,6 +41,10 @@ class GraphDeps:
     model: ModelClient
     registry: SkillRegistry
     emit: Callable[[HaloEvent], None]
+    # Tools the user granted "always for this task", per run. Kept in memory only:
+    # a grant covers the rest of the task in this session and is never written to
+    # the checkpoint on disk, so a restart asks again.
+    grants: dict[str, list[str]] = field(default_factory=dict)
 
 
 def checkpoint_serde() -> JsonPlusSerializer:
@@ -124,7 +128,8 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         assert plan is not None
         index = state["step_index"]
         step = plan.steps[index]
-        if not needs_approval(step, state["granted_tools"]):
+        granted_tools = deps.grants.get(state["run_id"], [])
+        if not needs_approval(step, granted_tools):
             return {"approved": True}
 
         request = ApprovalRequest(
@@ -140,10 +145,11 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         allowed, granted = apply_grant(
             grant,
             step,
-            state["granted_tools"],
+            granted_tools,
             grantable=_grantable(deps.registry, step),
         )
-        update: dict[str, Any] = {"approved": allowed, "granted_tools": granted}
+        deps.grants[state["run_id"]] = granted
+        update: dict[str, Any] = {"approved": allowed}
         if not allowed:
             update["results"] = [
                 {"step": index, "tool": step.tool, "status": "denied", "result": {}}
