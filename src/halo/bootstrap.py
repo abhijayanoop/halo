@@ -5,7 +5,7 @@ through here so they behave identically."""
 import asyncio
 import os
 from collections.abc import AsyncIterator, Callable, Mapping
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,6 +16,7 @@ from halo.config import HaloConfig
 from halo.core.contracts import HaloEvent
 from halo.core.graph import GraphDeps, build_graph, open_checkpointer
 from halo.core.runner import HaloRunner
+from halo.memory.extract import extractor_for
 from halo.memory.store import MemoryStore
 from halo.memory.watch import VaultWatcher
 from halo.models.client import ModelClient, build_client
@@ -98,7 +99,12 @@ async def open_halo(
             if watcher is not None:
                 watcher.start()
             try:
-                yield Halo(bus, HaloRunner(graph, bus.publish), registry, memory)
+                # Nano proposing memories after a run is opt-in (HALO_MEMORY_EXTRACT=1).
+                async with AsyncExitStack() as stack:
+                    extractor = extractor_for(bus, client, memory)
+                    if extractor is not None:
+                        await stack.enter_async_context(extractor)
+                    yield Halo(bus, HaloRunner(graph, bus.publish), registry, memory)
             finally:
                 if watcher is not None:
                     watcher.stop()

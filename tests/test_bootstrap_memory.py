@@ -170,3 +170,54 @@ async def test_a_forget_through_open_halo_needs_the_card(
             ),
         )
         assert halo.memory.recall("pywebview") == []
+
+
+async def test_extraction_is_wired_in_when_enabled(
+    config: HaloConfig,
+    tmp_path: Path,
+    make_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    monkeypatch.setenv("HALO_MEMORY_EXTRACT", "1")
+    facts = json.dumps(
+        {"candidates": [{"fact": "Prefers pytest over unittest", "subject": "halo"}]}
+    )
+    client, _, _ = make_client(
+        reply(_intent("chat", message="hi")), reply("hello there"), reply(facts)
+    )
+    async with open_halo(
+        config, home=tmp_path / "home", client_factory=lambda e: client
+    ) as halo:
+        assert halo.memory is not None
+        await halo.runner.run("I always use pytest, never unittest", run_id="x1")
+        for _ in range(100):
+            if halo.memory.proposals():
+                break
+            await asyncio.sleep(0.05)
+        assert [p.candidate.fact for p in halo.memory.proposals()] == [
+            "Prefers pytest over unittest"
+        ]
+
+
+async def test_extraction_is_off_by_default(
+    config: HaloConfig,
+    tmp_path: Path,
+    make_client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    monkeypatch.delenv("HALO_MEMORY_EXTRACT", raising=False)
+    client, transport, _ = make_client(
+        reply(_intent("chat", message="hi")), reply("hello there")
+    )
+    async with open_halo(
+        config, home=tmp_path / "home", client_factory=lambda e: client
+    ) as halo:
+        assert halo.memory is not None
+        await halo.runner.run("I always use pytest, never unittest", run_id="x2")
+        await asyncio.sleep(0.2)
+        assert halo.memory.proposals() == []
+    assert len(transport.calls) == 2  # the router and the chat reply, nothing more

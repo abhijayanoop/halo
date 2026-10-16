@@ -25,6 +25,9 @@ from starlette.websockets import WebSocketDisconnect
 from halo.bootstrap import Halo
 from halo.core.contracts import ApprovalDecision, ApprovalGrant, HaloEvent
 from halo.core.events import new_event_id
+from halo.memory.events import approved_event, proposed_event, rejected_event
+from halo.memory.store import MemoryStore
+from halo.memory.vault import VaultPathError
 
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 # The Vite dev server the HUD is developed against.
@@ -49,11 +52,16 @@ class CatchUp:
     def __init__(self) -> None:
         self._mood: HaloEvent | None = None
         self._open: dict[str, HaloEvent] = {}
+        self._proposals: dict[str, HaloEvent] = {}  # proposed memories not yet settled
 
     def feed(self, event: HaloEvent) -> None:
         match event.type:
             case "mood":
                 self._mood = event
+            case "memory.proposed":
+                self._proposals[str(event.payload.get("candidate_id"))] = event
+            case "memory.saved" | "memory.forgotten":
+                self._proposals.pop(str(event.payload.get("candidate_id")), None)
             case "approval.requested":
                 key = event.payload.get("approval_id")
                 self._open[str(key or event.id)] = event
@@ -65,7 +73,11 @@ class CatchUp:
                 }
 
     def snapshot(self) -> list[HaloEvent]:
-        return [*([self._mood] if self._mood else []), *self._open.values()]
+        return [
+            *([self._mood] if self._mood else []),
+            *self._open.values(),
+            *self._proposals.values(),
+        ]
 
 
 class RunBody(BaseModel):
@@ -81,6 +93,11 @@ class RunBody(BaseModel):
 
 class StopBody(BaseModel):
     run_id: str
+
+
+class MemoryDecisionBody(BaseModel):
+    candidate_id: str
+    note: str | None = None  # where to write an approved memory; default by subject
 
 
 class ApproveBody(BaseModel):
@@ -201,6 +218,9 @@ def create_app(
             # Cards that were open when Halo last quit are still waiting: offer them.
             for restored in await halo.runner.paused_approvals():
                 catchup.feed(restored)
+            if halo.memory is not None:
+                for waiting in await asyncio.to_thread(halo.memory.proposals):
+                    catchup.feed(proposed_event(waiting.id, waiting.candidate))
 
             async def track() -> None:
                 while True:
@@ -258,6 +278,38 @@ def create_app(
                 resuming.discard(body.run_id)
 
         spawn(resume())
+        return {"ok": True}
+
+    def _memory(request: Request) -> MemoryStore:
+        halo: Halo = request.app.state.halo
+        if halo.memory is None:
+            raise HTTPException(503, "memory is not set up")
+        return halo.memory
+
+    @app.post("/memory/approve")
+    async def approve_memory(
+        body: MemoryDecisionBody, request: Request
+    ) -> dict[str, Any]:
+        memory = _memory(request)
+        try:
+            item = await asyncio.to_thread(
+                memory.approve, body.candidate_id, note=body.note
+            )
+        except KeyError:
+            raise HTTPException(404, "no such proposed memory") from None
+        except (VaultPathError, ValueError) as exc:
+            raise HTTPException(422, str(exc)) from None
+        request.app.state.halo.bus.publish(approved_event(body.candidate_id, item))
+        return {"ok": True, "note": item.note_path}
+
+    @app.post("/memory/reject")
+    async def reject_memory(
+        body: MemoryDecisionBody, request: Request
+    ) -> dict[str, bool]:
+        memory = _memory(request)
+        if not await asyncio.to_thread(memory.reject, body.candidate_id):
+            raise HTTPException(404, "no such proposed memory")
+        request.app.state.halo.bus.publish(rejected_event(body.candidate_id))
         return {"ok": True}
 
     @app.post("/stop")
