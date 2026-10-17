@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { HaloMascot } from "../character/HaloMascot";
 import { moodSpec } from "../character/spec";
@@ -51,6 +51,7 @@ export function CollapsedBar({
   const progress = live ? run.progress : null;
   const agents = runningAgents(halo);
   const spec = moodSpec(halo.mood);
+  const reducedMotion = useReducedMotion() ?? false;
   const mascotBox = useRef<HTMLSpanElement>(null);
   const gaze = useGaze(mascotBox);
 
@@ -108,6 +109,31 @@ export function CollapsedBar({
             />
           ))}
         </span>
+      )}
+
+      {live && (
+        // Minimised, this is how you know work is going on: a small light that
+        // blinks in the colour of what Halo is doing (blue thinking, violet
+        // working, amber waiting on you) and changes colour with the mood.
+        <motion.span
+          aria-hidden
+          data-testid="activity-light"
+          data-color={spec.ring}
+          data-blinking={reducedMotion ? "false" : "true"}
+          className="mr-1 h-2 w-2 shrink-0 rounded-full"
+          animate={{
+            backgroundColor: spec.ring,
+            opacity: reducedMotion ? 1 : [1, 0.15, 1],
+          }}
+          transition={{
+            backgroundColor: { duration: 0.4 },
+            opacity: {
+              duration: halo.mood === "asking" ? 0.7 : 1.3,
+              repeat: Infinity,
+              ease: "easeInOut",
+            },
+          }}
+        />
       )}
 
       {progress && (

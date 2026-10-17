@@ -16,9 +16,16 @@
   --color-ink-faint: #555a66;
 }
 
+/* Dark, thin scrollbars that belong to the window, not the system white ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2c2f38 transparent;
+}
+
 html,
 body,
 #root {
+  color-scheme: dark;
   margin: 0;
   height: 100%;
   background: transparent;
