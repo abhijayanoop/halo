@@ -65,7 +65,7 @@ describe("selectView", () => {
   it("uses the agreed window sizes", () => {
     expect(SIZES.bar).toEqual([260, 44]);
     expect(SIZES.card).toEqual([380, 140]);
-    expect(SIZES.panel).toEqual([420, 600]);
+    expect(SIZES.panel).toEqual([640, 360]);
   });
 });
 

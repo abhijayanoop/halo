@@ -7,7 +7,7 @@ export type View = "bar" | "card" | "panel";
 export const SIZES: Record<View, [number, number]> = {
   bar: [260, 44],
   card: [380, 140],
-  panel: [420, 600],
+  panel: [640, 360],
 };
 
 export function selectView(halo: HaloState, expanded: boolean): View {

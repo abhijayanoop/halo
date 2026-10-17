@@ -64,7 +64,7 @@ export function CollapsedBar({
       whileTap={{ scale: 0.985 }}
       transition={{ type: "spring", stiffness: 500, damping: 30 }}
       style={{ "--ring": spec.ring } as CSSProperties}
-      className="glass relative flex h-[44px] w-[260px] cursor-pointer items-center gap-2 rounded-[22px] px-2 text-left"
+      className="plate relative flex h-[44px] w-[260px] cursor-pointer items-center gap-2 rounded-[22px] px-2 text-left"
     >
       <span ref={mascotBox} className="flex h-9 w-9 shrink-0 items-center">
         <HaloMascot

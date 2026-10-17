@@ -56,19 +56,19 @@ export function MemoryTab({
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.2 }}
-            className="flex flex-col gap-2 rounded-xl bg-white/[0.05] p-3"
+            className="flex flex-col gap-2 tile rounded-xl p-3"
           >
             <p className="text-[13px] leading-snug text-ink">{p.fact}</p>
             <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
               {p.subject && (
-                <span className="rounded-full bg-violet-400/20 px-2 py-0.5 text-violet-200">
+                <span className="rounded-full bg-raised-2 px-2 py-0.5 text-ink">
                   {p.subject}
                 </span>
               )}
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-ink-dim">
+              <span className="rounded-full bg-raised-2 px-2 py-0.5 text-ink-dim">
                 {p.source}
               </span>
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-ink-dim">
+              <span className="rounded-full bg-raised-2 px-2 py-0.5 text-ink-dim">
                 {p.trust} trust
               </span>
             </div>
@@ -77,7 +77,7 @@ export function MemoryTab({
                 type="button"
                 disabled={busy !== null}
                 onClick={() => void decide(p.candidateId, api.memoryApprove)}
-                className="rounded-lg bg-emerald-400 px-3 py-1 text-xs font-semibold text-slate-900 transition hover:brightness-110 active:scale-95 disabled:opacity-40"
+                className="rounded-md bg-ink px-3 py-1 text-xs font-semibold text-bg transition hover:bg-white active:scale-95 disabled:opacity-40"
               >
                 Approve
               </button>
@@ -85,7 +85,7 @@ export function MemoryTab({
                 type="button"
                 disabled={busy !== null}
                 onClick={() => void decide(p.candidateId, api.memoryReject)}
-                className="rounded-lg bg-white/10 px-3 py-1 text-xs font-medium transition hover:bg-white/20 active:scale-95 disabled:opacity-40"
+                className="rounded-md border border-line px-3 py-1 text-xs font-medium transition hover:bg-raised-2 active:scale-95 disabled:opacity-40"
               >
                 Reject
               </button>

@@ -49,11 +49,11 @@ describe("App", () => {
     expect(resize).toHaveBeenLastCalledWith(260, 44);
   });
 
-  it("opens the panel on click (420 x 600) and collapses on Escape", async () => {
+  it("opens the panel on click (640 x 360) and collapses on Escape", async () => {
     render(<App />);
     await userEvent.click(screen.getByRole("button", { name: /open halo/i }));
     expect(screen.getByRole("tablist")).toBeInTheDocument();
-    expect(resize).toHaveBeenLastCalledWith(420, 600);
+    expect(resize).toHaveBeenLastCalledWith(640, 360);
 
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("tablist")).toBeNull();

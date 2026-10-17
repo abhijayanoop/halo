@@ -245,14 +245,15 @@ function drawAccessory(kind: Accessory | null): Shape[] {
 
 export function drawLayers(spec: MoodSpec): Layers {
   return {
-    // A soft contact shadow under the body, behind it.
+    // A soft pool of light under the body. A dark shadow vanishes on a near-black
+    // window, so the ground is a faint lighter ellipse instead.
     shadow: [
       {
-        d: ellipseD(50, 90, 30, 3.2),
+        d: ellipseD(50, 90, 30, 3.4),
         stroke: NONE,
         strokeWidth: 0,
-        fill: "#000000",
-        opacity: 0.35,
+        fill: "#ffffff",
+        opacity: 0.1,
       },
     ],
     body: [{ d: BODY_D, stroke: NONE, strokeWidth: 0, fill: spec.body }],

@@ -54,6 +54,9 @@ function agentRows(
   return rows;
 }
 
+const HEADING =
+  "pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint";
+
 function NowTab({ run }: { run: RunView | undefined }) {
   if (!run)
     return (
@@ -64,12 +67,10 @@ function NowTab({ run }: { run: RunView | undefined }) {
     );
   const agents = agentRows(run);
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div className="flex flex-col gap-4 p-4">
       {agents.length > 0 && (
         <section>
-          <h3 className="pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-            Helpers
-          </h3>
+          <h3 className={HEADING}>Helpers</h3>
           <ul aria-label="Helpers" className="flex flex-col gap-0.5">
             {agents.map(({ node, depth }) => (
               <li
@@ -100,9 +101,7 @@ function NowTab({ run }: { run: RunView | undefined }) {
         </section>
       )}
       <section>
-        <h3 className="pb-1 text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
-          Steps
-        </h3>
+        <h3 className={HEADING}>Steps</h3>
         <ol aria-label="Timeline" className="flex flex-col gap-1">
           {run.timeline.map((item) => {
             const state = stepState(item);
@@ -111,10 +110,10 @@ function NowTab({ run }: { run: RunView | undefined }) {
                 key={item.id}
                 data-testid="timeline-item"
                 data-status={state}
-                initial={{ opacity: 0, y: 6 }}
+                initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2 }}
-                className="rounded-lg bg-white/[0.04] px-2.5 py-1.5 text-[13px] text-ink"
+                transition={{ duration: 0.18 }}
+                className="tile rounded-lg px-2.5 py-1.5 text-[13px] text-ink"
               >
                 <div className="flex items-center gap-2">
                   <span
@@ -125,7 +124,7 @@ function NowTab({ run }: { run: RunView | undefined }) {
                   </span>
                   <span className="min-w-0 flex-1 truncate">{item.title}</span>
                   {item.durationMs !== undefined && (
-                    <span className="shrink-0 rounded-full bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-ink-dim">
+                    <span className="shrink-0 font-mono text-[10px] tabular-nums text-ink-dim">
                       {duration(item.durationMs)}
                     </span>
                   )}
@@ -202,19 +201,20 @@ export function Panel({
   return (
     <section
       style={{ "--ring": spec.ring } as CSSProperties}
-      className="glass flex h-[600px] w-[420px] flex-col overflow-hidden rounded-3xl text-ink"
+      className="plate flex h-[360px] w-[640px] overflow-hidden rounded-2xl text-ink"
     >
-      <header className="flex items-center gap-3 p-3 pb-2">
-        <div ref={mascotBox} className="shrink-0">
+      {/* The rail: who Halo is right now. */}
+      <aside className="flex w-[188px] shrink-0 flex-col gap-3 border-r border-line p-4">
+        <div ref={mascotBox} className="-ml-1 mt-1">
           <HaloMascot
             mood={halo.mood}
             agents={helpers}
             progress={progress ? progress.step / progress.of : null}
             gaze={gaze}
-            size={60}
+            size={96}
           />
         </div>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0">
           <div
             className="text-[10px] font-semibold uppercase tracking-wider"
             style={{ color: spec.ring }}
@@ -223,108 +223,155 @@ export function Panel({
           </div>
           <motion.div
             key={halo.statusLine}
-            initial={{ opacity: 0, y: 4 }}
+            initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
-            className="truncate text-sm font-medium"
+            className="line-clamp-3 pt-0.5 text-[13px] font-medium leading-snug"
           >
             {halo.statusLine}
           </motion.div>
-          <div className="flex items-center gap-2 pt-0.5">
-            {run && (
+        </div>
+
+        {run?.request && (
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-ink-faint">
+              You asked
+            </div>
+            <p
+              data-testid="run-request"
+              className="line-clamp-3 pt-0.5 text-[12px] leading-snug text-ink-dim"
+            >
+              {run.request}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-1.5 text-[11px] text-ink-dim">
+          {progress && (
+            <div>
+              <div className="flex justify-between">
+                <span>Step</span>
+                <span className="font-mono tabular-nums text-ink">
+                  {progress.step}/{progress.of}
+                </span>
+              </div>
+              <div className="mt-1 h-[2px] overflow-hidden rounded-full bg-line">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ background: spec.ring }}
+                  animate={{ width: `${(progress.step / progress.of) * 100}%` }}
+                  transition={{ type: "spring", stiffness: 200, damping: 26 }}
+                />
+              </div>
+            </div>
+          )}
+          {run && (
+            <div className="flex justify-between">
+              <span>Cost</span>
               <span
                 data-testid="run-cost"
-                className="font-mono text-[11px] tabular-nums text-ink-dim"
+                className="font-mono tabular-nums text-ink"
               >
                 ₹{run.costInr.toFixed(2)}
               </span>
-            )}
-            {helpers > 0 && (
-              <span className="rounded-full bg-violet-400/20 px-1.5 py-0.5 text-[10px] text-violet-200">
+            </div>
+          )}
+          {helpers > 0 && (
+            <div className="flex justify-between">
+              <span>Helpers</span>
+              <span className="font-mono tabular-nums text-ink">
                 <span data-testid="helper-count">{helpers}</span>{" "}
-                {helpers === 1 ? "helper" : "helpers"}
+                <span className="font-sans text-ink-dim">
+                  {helpers === 1 ? "helper" : "helpers"}
+                </span>
               </span>
-            )}
-          </div>
+            </div>
+          )}
         </div>
+
         {live && (
           <button
             type="button"
             onClick={() => void stop()}
-            className="rounded-lg bg-red-500/20 px-2.5 py-1 text-xs font-semibold text-red-200 transition hover:bg-red-500/30 active:scale-95"
+            className="mt-auto rounded-md border border-line px-2.5 py-1.5 text-xs font-medium text-ink transition hover:border-red-400/60 hover:text-red-200 active:scale-95"
           >
             ■ Stop
           </button>
         )}
-        <button
-          type="button"
-          aria-label="Collapse"
-          onClick={onCollapse}
-          className="rounded-lg px-2 py-1 text-ink-dim transition hover:bg-white/10 hover:text-ink"
-        >
-          ✕
-        </button>
-      </header>
+      </aside>
 
-      <div role="tablist" className="flex gap-1 px-3 pb-2">
-        {TABS.map((name) => (
+      {/* The content: tabs, the tab, and where you ask. */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex items-center border-b border-line pl-2 pr-1">
+          <div role="tablist" className="flex flex-1 gap-1">
+            {TABS.map((name) => (
+              <button
+                key={name}
+                type="button"
+                role="tab"
+                aria-selected={tab === name}
+                onClick={() => setTab(name)}
+                className={`-mb-px border-b-2 px-2.5 py-2.5 text-xs font-medium transition ${
+                  tab === name
+                    ? "border-ink text-ink"
+                    : "border-transparent text-ink-dim hover:text-ink"
+                }`}
+              >
+                {name}
+                {name === "Memory" && halo.proposedMemories.length > 0 && (
+                  <span className="ml-1.5 rounded-full bg-ink px-1.5 text-[10px] font-semibold text-bg">
+                    {halo.proposedMemories.length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
           <button
-            key={name}
             type="button"
-            role="tab"
-            aria-selected={tab === name}
-            onClick={() => setTab(name)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              tab === name
-                ? "bg-white/15 text-ink"
-                : "text-ink-dim hover:bg-white/5 hover:text-ink"
-            }`}
+            aria-label="Collapse"
+            onClick={onCollapse}
+            className="rounded-md px-2 py-1 text-ink-dim transition hover:bg-raised-2 hover:text-ink"
           >
-            {name}
-            {name === "Memory" && halo.proposedMemories.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-amber-400/30 px-1.5 text-[10px] font-semibold text-amber-100">
-                {halo.proposedMemories.length}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto border-t border-white/10">
-        {tab === "Now" ? (
-          <NowTab run={run} />
-        ) : tab === "Memory" ? (
-          <MemoryTab proposals={halo.proposedMemories} api={api} />
-        ) : (
-          <p data-testid="tab-stub" className="p-4 text-sm text-ink-dim">
-            {tab} is coming soon.
-          </p>
-        )}
-      </div>
-
-      <form onSubmit={submit} className="border-t border-white/10 p-3">
-        {error && (
-          <p role="alert" className="pb-1 text-xs text-red-300">
-            {error}
-          </p>
-        )}
-        <div className="flex items-center gap-2 rounded-xl bg-white/10 pr-1.5 focus-within:ring-1 focus-within:ring-violet-400">
-          <input
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder="Ask Halo to do something…"
-            aria-label="Ask Halo"
-            className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-ink-faint"
-          />
-          <button
-            type="submit"
-            aria-label="Send"
-            disabled={!text.trim()}
-            className="rounded-lg bg-violet-500 px-2.5 py-1 text-sm font-semibold text-white transition enabled:hover:bg-violet-400 disabled:opacity-30"
-          >
-            ↑
+            ✕
           </button>
         </div>
-      </form>
+
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {tab === "Now" ? (
+            <NowTab run={run} />
+          ) : tab === "Memory" ? (
+            <MemoryTab proposals={halo.proposedMemories} api={api} />
+          ) : (
+            <p data-testid="tab-stub" className="p-4 text-sm text-ink-dim">
+              {tab} is coming soon.
+            </p>
+          )}
+        </div>
+
+        <form onSubmit={submit} className="border-t border-line p-3">
+          {error && (
+            <p role="alert" className="pb-1.5 text-xs text-red-300">
+              {error}
+            </p>
+          )}
+          <div className="tile flex items-center gap-2 rounded-lg pr-1.5 focus-within:border-ink-dim">
+            <input
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="Ask Halo to do something…"
+              aria-label="Ask Halo"
+              className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-ink-faint"
+            />
+            <button
+              type="submit"
+              aria-label="Send"
+              disabled={!text.trim()}
+              className="rounded-md bg-ink px-2.5 py-1 text-sm font-semibold text-bg transition enabled:hover:bg-white disabled:opacity-25"
+            >
+              ↑
+            </button>
+          </div>
+        </form>
+      </div>
     </section>
   );
 }

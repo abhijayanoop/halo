@@ -1,16 +1,19 @@
 @import "tailwindcss";
 
-/* One typeface for text, one for the ticker and code. Both fall back to what
-   the OS ships, so nothing is fetched. */
+/* A quiet, dark instrument. Flat near-black surfaces, a 1px hairline for edges,
+   one typeface for text and one for numbers. Colour is reserved for state: it
+   comes from the mood or the risk, through --ring, and nowhere else. */
 @theme {
   --font-sans:
     "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, monospace;
-  --color-ink: #e8ecf4;
-  --color-ink-dim: #9aa3b2;
-  --color-ink-faint: #6b7385;
-  --color-glass-top: rgb(32 36 56 / 0.94);
-  --color-glass-bottom: rgb(13 16 29 / 0.94);
+  --color-bg: #0b0c0f;
+  --color-raised: #121317;
+  --color-raised-2: #181a20;
+  --color-line: #23252c;
+  --color-ink: #e9eaee;
+  --color-ink-dim: #8b8f9a;
+  --color-ink-faint: #555a66;
 }
 
 html,
@@ -23,25 +26,22 @@ body,
   font-family: var(--font-sans);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum", "cv11";
 }
 
-/* Dark glass. The edge and the inner glow take the colour of --ring, which the
-   component sets from the current mood, so the whole surface shows the state. */
-@utility glass {
-  background: linear-gradient(
-    180deg,
-    var(--color-glass-top),
-    var(--color-glass-bottom)
-  );
+/* The window and the cards: flat, with a hairline. The edge picks up a little of
+   --ring (the state colour) so the state shows without any glow. */
+@utility plate {
+  background: var(--color-bg);
   border: 1px solid
-    color-mix(in srgb, var(--ring, #9aa3b2) 40%, rgb(255 255 255 / 0.1));
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.1),
-    inset 0 0 22px color-mix(in srgb, var(--ring, #9aa3b2) 16%, transparent);
-  backdrop-filter: blur(18px) saturate(1.4);
-  transition:
-    border-color 0.4s ease,
-    box-shadow 0.4s ease;
+    color-mix(in srgb, var(--ring, #9aa3b2) 22%, var(--color-line));
+  transition: border-color 0.3s ease;
+}
+
+/* A raised tile inside a plate: a step, a proposal. */
+@utility tile {
+  background: var(--color-raised);
+  border: 1px solid var(--color-line);
 }
 
 /* A small key cap, for the Enter and Esc hints. */
@@ -50,7 +50,7 @@ body,
   font-size: 10px;
   line-height: 1;
   padding: 2px 5px;
-  border-radius: 5px;
-  background: rgb(255 255 255 / 0.14);
-  border: 1px solid rgb(255 255 255 / 0.12);
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.1);
 }
