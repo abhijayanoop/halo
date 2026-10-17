@@ -66,6 +66,8 @@ export interface RunView {
   status: RunStatus;
   result?: RunResult;
   failure?: string;
+  /** What Halo said back: a chat reply or a recall answer, once the run is done. */
+  answer?: string;
   startedAt: string;
   finishedAt?: string;
   timeline: TimelineItem[];
@@ -169,6 +171,18 @@ function recalled(value: unknown): RecalledMemory[] | undefined {
     });
   }
   return found.length > 0 ? found : undefined;
+}
+
+/** The text Halo answered with: the last step result that has a reply or answer. */
+function answerFrom(results: unknown): string | undefined {
+  if (!Array.isArray(results)) return undefined;
+  let found: string | undefined;
+  for (const entry of results) {
+    const result = (entry as { result?: Record<string, unknown> } | null)?.result;
+    const text = str(result?.reply) ?? str(result?.answer);
+    if (text && text.trim()) found = text;
+  }
+  return found;
 }
 
 function toTimelineItem(event: HaloEvent): TimelineItem {
@@ -344,6 +358,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
         status: "finished",
         result: (str(payload.status) as RunResult | null) ?? "ok",
         finishedAt: event.ts,
+        answer: answerFrom(payload.results),
       }));
 
     case "run.failed":

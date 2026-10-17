@@ -77,6 +77,16 @@ def window_options(screen_width: int) -> dict[str, Any]:
     }
 
 
+def page_url(base: str, token: str, *, demo: bool = False) -> str:
+    """The HUD's address. The token rides in the hash, which is never sent to the
+    server. In demo mode the page replays the scripted tour (`ui/public/demo`)
+    instead of listening to the live event stream."""
+    url = f"{base}/#token={token}"
+    if demo:
+        url += f"&mock={base}/demo/tour.jsonl&speed=1"
+    return url
+
+
 def make_form_see_through(form: Any, key_color: Any) -> None:
     """Make the native form behind the page transparent. The web view itself is
     transparent, but the form under it paints its own grey unless that colour is
@@ -266,7 +276,10 @@ def main() -> int:
     server = ServerThread(app, DEV_API_PORT if dev_url else free_port())
     server.start()
 
-    page = f"{dev_url or server.url}/#token={token}"
+    # HALO_DEMO=1 replays a scripted tour of every mood and view, with no model calls.
+    page = page_url(
+        dev_url or server.url, token, demo=os.environ.get("HALO_DEMO") == "1"
+    )
     screen = webview.screens[0]
     api = HudApi(None, (screen.width, screen.height))
     window = webview.create_window(

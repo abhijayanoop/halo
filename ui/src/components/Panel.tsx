@@ -68,6 +68,28 @@ function NowTab({ run }: { run: RunView | undefined }) {
   const agents = agentRows(run);
   return (
     <div className="flex flex-col gap-4 p-4">
+      {run.answer && (
+        <section>
+          <h3 className={HEADING}>Answer</h3>
+          <p
+            data-testid="run-answer"
+            className="tile whitespace-pre-wrap rounded-lg px-3 py-2.5 text-[13px] leading-relaxed text-ink"
+          >
+            {run.answer}
+          </p>
+        </section>
+      )}
+      {run.status === "failed" && run.failure && (
+        <section>
+          <h3 className={HEADING}>What went wrong</h3>
+          <p
+            data-testid="run-failure"
+            className="rounded-lg border border-red-400/30 px-3 py-2.5 text-[13px] leading-relaxed text-red-200"
+          >
+            {run.failure}
+          </p>
+        </section>
+      )}
       {agents.length > 0 && (
         <section>
           <h3 className={HEADING}>Helpers</h3>

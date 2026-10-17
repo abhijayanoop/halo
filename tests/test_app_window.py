@@ -38,3 +38,28 @@ def test_the_form_behind_the_page_is_keyed_transparent() -> None:
     make_form_see_through(form, "KEY")
     assert form.BackColor == "KEY"
     assert form.TransparencyKey == "KEY"
+
+
+def test_the_page_url_carries_the_token_in_the_hash() -> None:
+    from halo.app import page_url
+
+    assert page_url("http://127.0.0.1:9000", "tok", demo=False) == (
+        "http://127.0.0.1:9000/#token=tok"
+    )
+
+
+def test_demo_mode_replays_the_scripted_tour_instead_of_the_live_stream() -> None:
+    from halo.app import page_url
+
+    url = page_url("http://127.0.0.1:9000", "tok", demo=True)
+    assert url.startswith("http://127.0.0.1:9000/#token=tok&")
+    assert "mock=http://127.0.0.1:9000/demo/tour.jsonl" in url
+
+
+def test_the_tour_ships_with_the_built_ui() -> None:
+    """vite copies ui/public into ui/dist, so the packaged app has the tour too."""
+    from pathlib import Path
+
+    tour = Path(__file__).parent.parent / "ui" / "public" / "demo" / "tour.jsonl"
+    assert tour.is_file()
+    assert tour.read_text(encoding="utf-8").count("\n") > 30
