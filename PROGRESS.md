@@ -37,7 +37,7 @@ _Last updated: 2026-10-17. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 - Mood events are not yet derived from sub-agent or Reader events (those modules do not exist), so Careful relies on a `payload.untrusted` flag on `tool.called`.
 - Only Nemotron on NVIDIA's API has been exercised; Token Factory (the submission target) is untested until its key arrives.
 - The HUD is served over http from the local server (same origin), so the `null` Origin (`file://`) is still rejected, on purpose.
-- The window is now `transparent`; the pill's rounded corners and the glass blur have been checked in a browser, not yet by eye in the real window.
+- The window is opaque and rounded with a window region (see DECISIONS). Checked in the real window with a real click; not yet checked on a second monitor or at other display scales.
 - Voice accuracy is weak on live mic input; `sherpa-onnx` transducer variant fails to load (see `spikes/RESULTS.md`).
 - `tests/fixtures/demo_repo` is gitignored (nested .git); regenerate per `spikes/claude_worker_probe.py`.
 

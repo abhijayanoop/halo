@@ -29,6 +29,7 @@ from halo.config import load_config, load_env
 logger = logging.getLogger(__name__)
 
 BAR_WIDTH, BAR_HEIGHT, BAR_TOP = 260, 44, 8
+HUD_COLOR = "#0b0c0f"  # the window's own colour; the page paints the same near-black
 MIN_SIZE = (200, 40)
 MAX_SIZE = (800, 900)
 MIN_VISIBLE = (100, 40)  # how much of the window must stay on screen
@@ -59,9 +60,11 @@ def bar_geometry(screen_width: int) -> tuple[int, int, int, int]:
 
 def window_options(screen_width: int) -> dict[str, Any]:
     """The keyword arguments for the HUD window: the bar at the top centre,
-    frameless, always on top, and transparent. pywebview's default minimum size
-    is 200x100, which would leave a tall box around the 44 px bar, so the minimum
-    is the bar's own size."""
+    frameless, always on top, opaque in the HUD's own colour (rounded by a window
+    region, see `_shape_window`). pywebview's default minimum size is 200x100,
+    which would leave a tall box around the 44 px bar, so the minimum is the
+    bar's own size. It is not transparent: a transparent window lets clicks fall
+    through to whatever is behind it."""
     x, y, width, height = bar_geometry(screen_width)
     return {
         "x": x,
@@ -72,7 +75,8 @@ def window_options(screen_width: int) -> dict[str, Any]:
         "frameless": True,
         "on_top": True,
         "easy_drag": True,
-        "transparent": True,
+        "transparent": False,
+        "background_color": HUD_COLOR,
         "shadow": False,
     }
 
@@ -87,28 +91,36 @@ def page_url(base: str, token: str, *, demo: bool = False) -> str:
     return url
 
 
-def make_form_see_through(form: Any, key_color: Any) -> None:
-    """Make the native form behind the page transparent. The web view itself is
-    transparent, but the form under it paints its own grey unless that colour is
-    also its transparency key, which Windows then draws as nothing (and lets
-    clicks through)."""
-    form.BackColor = key_color
-    form.TransparencyKey = key_color
+def corner_radius(width: int, height: int) -> int:
+    """How round the window's corners are: the bar is a full pill (half its
+    height), the card and the panel are softer boxes."""
+    return height // 2 if height <= 60 else 16
 
 
-def _see_through(window: Any) -> None:
-    """Windows only: apply `make_form_see_through` on the form's own thread."""
+def _shape_window(window: Any, width: int, height: int) -> None:
+    """Windows only: cut the window to a rounded rectangle with a window region.
+    Everything outside the shape is not part of the window, so it draws nothing
+    and clicks there reach whatever is behind; clicks inside land on Halo."""
     if sys.platform != "win32":
         return
     try:
-        from System import Action  # pyright: ignore[reportMissingImports]
-        from System.Drawing import Color  # pyright: ignore[reportMissingImports]
+        import ctypes
+        from ctypes import wintypes
 
-        form = window.native
-        key = Color.FromArgb(255, 1, 2, 3)  # a colour nothing in the HUD uses
-        form.Invoke(Action(lambda: make_form_see_through(form, key)))
+        hwnd = window.native.Handle.ToInt32()
+        rect = wintypes.RECT()
+        ctypes.windll.user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        phys_w, phys_h = rect.right - rect.left, rect.bottom - rect.top
+        scale = phys_w / width if width else 1.0  # the window's DPI scale
+        diameter = int(2 * corner_radius(width, height) * scale)
+        region = ctypes.windll.gdi32.CreateRoundRectRgn(
+            0, 0, phys_w + 1, phys_h + 1, diameter, diameter
+        )
+        ctypes.windll.user32.SetWindowRgn(
+            hwnd, region, True
+        )  # the OS owns the region now
     except Exception:  # a cosmetic step must never stop the app
-        logger.exception("could not make the window see-through")
+        logger.exception("could not round the window")
 
 
 def _whole(value: object) -> int | None:
@@ -146,11 +158,13 @@ class HudApi:
         *,
         allowed_roots: Sequence[Path] | None = None,
         launcher: Callable[[list[str]], None] = _launch,
+        shaper: Callable[[Any, int, int], None] | None = None,
     ) -> None:
         self._window = window
         self._screen = screen
         self._roots = [root.resolve() for root in (allowed_roots or [default_home()])]
         self._launcher = launcher
+        self._shaper = shaper  # re-cuts the window's rounded shape after a resize
 
     def _attach(self, window: Window) -> None:
         self._window = window
@@ -164,6 +178,8 @@ class HudApi:
         h = _clamp(h, MIN_SIZE[1], MAX_SIZE[1])
         self._window.resize(w, h)
         self._window.move((self._screen[0] - w) // 2, BAR_TOP)
+        if self._shaper is not None:
+            self._shaper(self._window, w, h)
 
     def move(self, x: int, y: int) -> None:
         px, py = _whole(x), _whole(y)
@@ -281,12 +297,12 @@ def main() -> int:
         dev_url or server.url, token, demo=os.environ.get("HALO_DEMO") == "1"
     )
     screen = webview.screens[0]
-    api = HudApi(None, (screen.width, screen.height))
+    api = HudApi(None, (screen.width, screen.height), shaper=_shape_window)
     window = webview.create_window(
         "Halo", url=page, js_api=api, **window_options(screen.width)
     )
     api._attach(window)  # pyright: ignore[reportPrivateUsage]
-    window.events.shown += lambda: _see_through(window)
+    window.events.shown += lambda: _shape_window(window, BAR_WIDTH, BAR_HEIGHT)
     try:
         webview.start()
     finally:

@@ -28,7 +28,7 @@ body,
   color-scheme: dark;
   margin: 0;
   height: 100%;
-  background: transparent;
+  background: var(--color-bg);
   overflow: hidden;
   font-family: var(--font-sans);
   color: var(--color-ink);
