@@ -57,6 +57,50 @@ def bar_geometry(screen_width: int) -> tuple[int, int, int, int]:
     return (screen_width - BAR_WIDTH) // 2, BAR_TOP, BAR_WIDTH, BAR_HEIGHT
 
 
+def window_options(screen_width: int) -> dict[str, Any]:
+    """The keyword arguments for the HUD window: the bar at the top centre,
+    frameless, always on top, and transparent. pywebview's default minimum size
+    is 200x100, which would leave a tall box around the 44 px bar, so the minimum
+    is the bar's own size."""
+    x, y, width, height = bar_geometry(screen_width)
+    return {
+        "x": x,
+        "y": y,
+        "width": width,
+        "height": height,
+        "min_size": (BAR_WIDTH, BAR_HEIGHT),
+        "frameless": True,
+        "on_top": True,
+        "easy_drag": True,
+        "transparent": True,
+        "shadow": False,
+    }
+
+
+def make_form_see_through(form: Any, key_color: Any) -> None:
+    """Make the native form behind the page transparent. The web view itself is
+    transparent, but the form under it paints its own grey unless that colour is
+    also its transparency key, which Windows then draws as nothing (and lets
+    clicks through)."""
+    form.BackColor = key_color
+    form.TransparencyKey = key_color
+
+
+def _see_through(window: Any) -> None:
+    """Windows only: apply `make_form_see_through` on the form's own thread."""
+    if sys.platform != "win32":
+        return
+    try:
+        from System import Action  # pyright: ignore[reportMissingImports]
+        from System.Drawing import Color  # pyright: ignore[reportMissingImports]
+
+        form = window.native
+        key = Color.FromArgb(255, 1, 2, 3)  # a colour nothing in the HUD uses
+        form.Invoke(Action(lambda: make_form_see_through(form, key)))
+    except Exception:  # a cosmetic step must never stop the app
+        logger.exception("could not make the window see-through")
+
+
 def _whole(value: object) -> int | None:
     """The page's number as an int, or None if it is not a whole finite number."""
     if isinstance(value, bool):
@@ -225,21 +269,11 @@ def main() -> int:
     page = f"{dev_url or server.url}/#token={token}"
     screen = webview.screens[0]
     api = HudApi(None, (screen.width, screen.height))
-    x, y, w, h = bar_geometry(screen.width)
     window = webview.create_window(
-        "Halo",
-        url=page,
-        width=w,
-        height=h,
-        x=x,
-        y=y,
-        frameless=True,
-        on_top=True,
-        easy_drag=True,
-        transparent=True,
-        js_api=api,
+        "Halo", url=page, js_api=api, **window_options(screen.width)
     )
     api._attach(window)  # pyright: ignore[reportPrivateUsage]
+    window.events.shown += lambda: _see_through(window)
     try:
         webview.start()
     finally:
