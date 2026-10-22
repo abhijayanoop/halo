@@ -201,3 +201,11 @@ def test_the_template_is_copied_once_and_never_overwritten(tmp_path: Path) -> No
     assert ensure_vault(vault) is False
     assert (vault / "Profile.md").read_text(encoding="utf-8") == "mine"
     assert note_privacy(next((vault / "Finance").glob("*.md"))) == "local"
+
+
+def test_the_starter_vault_holds_no_pre_written_memories(tmp_path: Path) -> None:
+    """The template must not assert facts about the user that they never said."""
+    vault = tmp_path / "HaloVault"
+    ensure_vault(vault)
+    found = [item for note in vault.rglob("*.md") for item in parse_note(note, vault)]
+    assert found == []
