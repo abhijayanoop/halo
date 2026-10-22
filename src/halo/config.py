@@ -132,15 +132,21 @@ def load_env() -> None:
 def load_config(path: Path | None = None) -> HaloConfig:
     if path is None and (env_path := os.environ.get("HALO_CONFIG")):
         path = Path(env_path)
+    defaults = (resources.files("halo") / "config.default.toml").read_text(
+        encoding="utf-8"
+    )
     if path is None and user_config_path().is_file():
-        path = user_config_path()
-    if path is not None:
-        text = path.read_text(encoding="utf-8")
+        # The user's file changes the sections it writes and leaves the rest as
+        # packaged: a file with only a [vault] must not drop the apps or models.
+        data = {
+            **tomllib.loads(defaults),
+            **tomllib.loads(user_config_path().read_text(encoding="utf-8")),
+        }
+    elif path is not None:
+        # An explicit file (or $HALO_CONFIG) stands alone.
+        data = tomllib.loads(path.read_text(encoding="utf-8"))
     else:
-        text = (resources.files("halo") / "config.default.toml").read_text(
-            encoding="utf-8"
-        )
-    data = tomllib.loads(text)
+        data = tomllib.loads(defaults)
     if env_profile := os.environ.get("HALO_PROFILE"):
         data["profile"] = env_profile
     return HaloConfig(**data)
