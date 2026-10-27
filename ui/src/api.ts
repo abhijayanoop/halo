@@ -10,12 +10,31 @@ export class ApiError extends Error {
   }
 }
 
+export type CodeAction = "approve" | "deny" | "merge" | "iterate" | "discard";
+
+export interface CodeBriefEdit {
+  goal: string;
+  acceptanceCriteria: string[];
+  likelyFiles: string[];
+  testCmd: string;
+  constraints: string[];
+  outOfScope: string[];
+}
+
 export interface Api {
   run(request: string): Promise<{ runId: string }>;
   approve(args: {
     runId: string;
     approvalId: string;
     grant: Grant;
+  }): Promise<void>;
+  /** Answer the brief card or the result card of a coding session. */
+  codeDecide?(args: {
+    runId: string;
+    approvalId: string;
+    action: CodeAction;
+    brief?: CodeBriefEdit;
+    feedback?: string;
   }): Promise<void>;
   /** End a run that is working or waiting on a card. */
   stop?(runId: string): Promise<void>;
@@ -56,6 +75,26 @@ export function createApi(
     },
     async approve({ runId, approvalId, grant }) {
       await post("/approve", { run_id: runId, approval_id: approvalId, grant });
+    },
+    async codeDecide({ runId, approvalId, action, brief, feedback }) {
+      await post("/code/decision", {
+        run_id: runId,
+        approval_id: approvalId,
+        action,
+        ...(brief
+          ? {
+              brief: {
+                goal: brief.goal,
+                acceptance_criteria: brief.acceptanceCriteria,
+                likely_files: brief.likelyFiles,
+                test_cmd: brief.testCmd,
+                constraints: brief.constraints,
+                out_of_scope: brief.outOfScope,
+              },
+            }
+          : {}),
+        ...(feedback !== undefined ? { feedback } : {}),
+      });
     },
     async stop(runId) {
       await post("/stop", { run_id: runId });

@@ -77,6 +77,44 @@ export interface RunView {
   costInr: number;
 }
 
+/** The brief of a coding task, as shown on the brief card. */
+export interface BriefData {
+  goal: string;
+  acceptanceCriteria: string[];
+  likelyFiles: string[];
+  testCmd: string;
+  constraints: string[];
+  outOfScope: string[];
+}
+
+/** What Halo itself found out about a finished coding change. */
+export interface ResultData {
+  project: string;
+  status: string;
+  summary: string;
+  tests: {
+    passed: boolean;
+    exitCode: number | null;
+    timedOut: boolean;
+    tail: string;
+  };
+  review: {
+    result: "pass" | "concerns";
+    summary: string;
+    issues: string[];
+  } | null;
+  diffStat: string;
+  changedFiles: string[];
+  costInr: string;
+  branch: string;
+  worktree: string;
+  iteration: number;
+  canIterate: boolean;
+  notice: string;
+}
+
+export type CodeKind = "code.brief" | "code.result";
+
 export interface PendingApproval {
   approvalId: string;
   runId: string;
@@ -85,6 +123,11 @@ export interface PendingApproval {
   risk: Risk;
   stepIndex: number | null;
   requestedAt: string;
+  /** Set only for the cards of a coding session, and only if their payload is well formed. */
+  kind?: CodeKind;
+  project?: string;
+  brief?: BriefData;
+  result?: ResultData;
 }
 
 export interface HaloState {
@@ -126,6 +169,83 @@ const num = (value: unknown): number | null => {
 const str = (value: unknown): string | null =>
   typeof value === "string" ? value : null;
 const isMood = (value: unknown): value is Mood => MOODS.includes(value as Mood);
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+const strings = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.every((v) => typeof v === "string")
+    ? (value as string[])
+    : null;
+
+function parseBrief(value: unknown): BriefData | null {
+  if (!isObject(value)) return null;
+  const goal = str(value.goal);
+  const criteria = strings(value.acceptance_criteria);
+  const testCmd = str(value.test_cmd);
+  if (goal === null || criteria === null || testCmd === null) return null;
+  return {
+    goal,
+    acceptanceCriteria: criteria,
+    likelyFiles: strings(value.likely_files) ?? [],
+    testCmd,
+    constraints: strings(value.constraints) ?? [],
+    outOfScope: strings(value.out_of_scope) ?? [],
+  };
+}
+
+function parseResult(payload: Record<string, unknown>): ResultData | null {
+  const tests = payload.tests;
+  if (!isObject(tests) || typeof tests.passed !== "boolean") return null;
+  let review: ResultData["review"] = null;
+  if (isObject(payload.review)) {
+    const r = payload.review;
+    const verdict = r.result === "pass" ? "pass" : "concerns";
+    review = {
+      result: verdict,
+      summary: str(r.summary) ?? "",
+      issues: strings(r.issues) ?? [],
+    };
+  }
+  return {
+    project: str(payload.project) ?? "",
+    status: str(payload.status) ?? "",
+    summary: str(payload.summary) ?? "",
+    tests: {
+      passed: tests.passed,
+      exitCode: num(tests.exit_code),
+      timedOut: tests.timed_out === true,
+      tail: str(tests.tail) ?? "",
+    },
+    review,
+    diffStat: str(payload.diff_stat) ?? "",
+    changedFiles: strings(payload.changed_files) ?? [],
+    costInr: str(payload.cost_inr) ?? "",
+    branch: str(payload.branch) ?? "",
+    worktree: str(payload.worktree) ?? "",
+    iteration: num(payload.iteration) ?? 1,
+    canIterate: payload.can_iterate === true,
+    notice: str(payload.notice) ?? "",
+  };
+}
+
+function parseCodeCard(
+  payload: Record<string, unknown>,
+): Pick<PendingApproval, "kind" | "project" | "brief" | "result"> {
+  if (payload.kind === "code.brief") {
+    const brief = parseBrief(payload.brief);
+    if (brief)
+      return { kind: "code.brief", project: str(payload.project) ?? "", brief };
+  } else if (payload.kind === "code.result") {
+    const result = parseResult(payload);
+    if (result)
+      return {
+        kind: "code.result",
+        project: str(payload.project) ?? "",
+        result,
+      };
+  }
+  return {};
+}
 
 function emptyRun(id: string, request: string, ts: string): RunView {
   return {
@@ -325,6 +445,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
         risk: (str(payload.risk) as Risk | null) ?? "medium",
         stepIndex: num(payload.step_index),
         requestedAt: event.ts,
+        ...parseCodeCard(payload),
       };
       return {
         ...withRun(next, event, (run) => ({ ...run, status: "paused" })),
