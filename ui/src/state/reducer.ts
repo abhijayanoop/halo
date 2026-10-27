@@ -60,6 +60,13 @@ export interface AgentNode {
   status: "running" | "done";
 }
 
+/** Something Halo suggests picking up, with the request that starts it. */
+export interface WorkProposal {
+  title: string;
+  project: string | null;
+  request: string;
+}
+
 export interface RunView {
   id: string;
   request: string;
@@ -68,6 +75,8 @@ export interface RunView {
   failure?: string;
   /** What Halo said back: a chat reply or a recall answer, once the run is done. */
   answer?: string;
+  /** What `work.start` suggests: click one to start it. At most three. */
+  proposals?: WorkProposal[];
   startedAt: string;
   finishedAt?: string;
   timeline: TimelineItem[];
@@ -305,6 +314,26 @@ function answerFrom(results: unknown): string | undefined {
   return found;
 }
 
+/** The suggestions of a finished `work.start` run; anything malformed is dropped. */
+function proposalsFrom(results: unknown): WorkProposal[] | undefined {
+  if (!Array.isArray(results)) return undefined;
+  let found: WorkProposal[] | undefined;
+  for (const entry of results) {
+    const list = (entry as { result?: { proposals?: unknown } } | null)?.result
+      ?.proposals;
+    if (!Array.isArray(list)) continue;
+    const items = list.flatMap((p): WorkProposal[] => {
+      if (!isObject(p)) return [];
+      const title = str(p.title);
+      const request = str(p.request);
+      if (!title || !request) return [];
+      return [{ title, project: str(p.project), request }];
+    });
+    if (items.length > 0) found = items.slice(0, 3);
+  }
+  return found;
+}
+
 function toTimelineItem(event: HaloEvent): TimelineItem {
   const memories = recalled(event.payload?.memories);
   return {
@@ -480,6 +509,7 @@ export function reduce(state: HaloState, event: HaloEvent): HaloState {
         result: (str(payload.status) as RunResult | null) ?? "ok",
         finishedAt: event.ts,
         answer: answerFrom(payload.results),
+        proposals: proposalsFrom(payload.results),
       }));
 
     case "run.failed":

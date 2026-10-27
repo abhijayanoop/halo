@@ -57,7 +57,13 @@ function agentRows(
 const HEADING =
   "pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-faint";
 
-function NowTab({ run }: { run: RunView | undefined }) {
+function NowTab({
+  run,
+  onStart,
+}: {
+  run: RunView | undefined;
+  onStart: (request: string) => void;
+}) {
   if (!run)
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
@@ -77,6 +83,25 @@ function NowTab({ run }: { run: RunView | undefined }) {
           >
             {run.answer}
           </p>
+          {run.proposals && run.proposals.length > 0 && (
+            <ul aria-label="Suggestions" className="mt-2 flex flex-col gap-1.5">
+              {run.proposals.map((p) => (
+                <li key={p.request}>
+                  <button
+                    type="button"
+                    data-testid="proposal"
+                    onClick={() => onStart(p.request)}
+                    className="tile w-full rounded-lg px-3 py-2 text-left text-[12px] text-ink transition hover:bg-raised-2 active:scale-[0.99]"
+                  >
+                    {p.title}
+                    {p.project && (
+                      <span className="ml-1.5 text-ink-dim">({p.project})</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
       {run.status === "failed" && run.failure && (
@@ -207,17 +232,22 @@ export function Panel({
     }
   };
 
+  const start = async (request: string): Promise<boolean> => {
+    setError(null);
+    try {
+      await api.run(request);
+      return true;
+    } catch {
+      setError("Couldn't reach Halo. Is it still running?");
+      return false;
+    }
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const request = text.trim();
     if (!request) return;
-    setError(null);
-    try {
-      await api.run(request);
-      setText("");
-    } catch {
-      setError("Couldn't reach Halo. Is it still running?");
-    }
+    if (await start(request)) setText("");
   };
 
   return (
@@ -359,7 +389,7 @@ export function Panel({
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === "Now" ? (
-            <NowTab run={run} />
+            <NowTab run={run} onStart={(request) => void start(request)} />
           ) : tab === "Memory" ? (
             <MemoryTab proposals={halo.proposedMemories} api={api} />
           ) : (

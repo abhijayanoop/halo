@@ -14,8 +14,9 @@ from halo.models.client import ModelClient
 from halo.skills.errors import SkillArgsError
 from halo.skills.registry import SkillRegistry
 
-# code.task is not here: it runs its own session (brief, cards, worker) as a single step.
-MULTI_STEP_SKILLS: set[SkillName] = {"trip.plan", "work.start"}
+# code.task and work.start are not here: each runs itself as a single step (a coding
+# session with its own cards; a work session read straight from the vault, no model).
+MULTI_STEP_SKILLS: set[SkillName] = {"trip.plan"}
 
 MAX_STEPS = 8
 

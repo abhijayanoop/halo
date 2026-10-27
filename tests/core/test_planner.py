@@ -23,7 +23,7 @@ def _step(tool: str, risk: str = "low", **args) -> dict:
 
 
 def test_only_multi_step_skills_need_a_plan() -> None:
-    assert MULTI_STEP_SKILLS == {"trip.plan", "work.start"}
+    assert MULTI_STEP_SKILLS == {"trip.plan"}
     assert needs_plan("trip.plan")
     assert not needs_plan("app.open")
     assert not needs_plan("chat")
@@ -150,4 +150,14 @@ async def test_code_task_is_one_direct_step_with_no_planner_call(
     assert [(s.tool, s.args, s.risk) for s in plan.steps] == [
         ("code.task", args, "low")
     ]
+    assert transport.calls == []
+
+
+async def test_work_start_is_one_direct_step_with_no_planner_call(
+    make_client, registry
+) -> None:
+    client, transport, _ = make_client()
+    intent = Intent(skill="work.start", args={}, confidence=1.0)
+    plan = await make_plan(client, registry, "run1", "let's get to work", intent)
+    assert [(s.tool, s.args, s.risk) for s in plan.steps] == [("work.start", {}, "low")]
     assert transport.calls == []
