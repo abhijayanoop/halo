@@ -29,6 +29,30 @@ def _safe_file(path: str, known: Collection[str]) -> bool:
     )
 
 
+def sanitize_brief(
+    brief: TaskBrief, *, known_files: Collection[str], test_cmd: str
+) -> TaskBrief:
+    """Make a brief safe to build against, whether the model wrote it or the user edited it."""
+    criteria = _clean(brief.acceptance_criteria, MAX_CRITERIA)
+    if not criteria:
+        raise BriefError("the brief has no acceptance criteria")
+    goal = brief.goal.strip()[:MAX_ITEM_CHARS]
+    if not goal:
+        raise BriefError("the brief has no goal")
+    return TaskBrief(
+        goal=goal,
+        acceptance_criteria=criteria,
+        likely_files=[f for f in brief.likely_files if _safe_file(f, known_files)][
+            :MAX_LIST
+        ],
+        # Halo runs this command itself, so it comes from the project note, never the model
+        # and never an edit on the card.
+        test_cmd=test_cmd,
+        constraints=_clean(brief.constraints, MAX_LIST),
+        out_of_scope=_clean(brief.out_of_scope, MAX_LIST),
+    )
+
+
 async def write_brief(
     client: ModelClient,
     *,
@@ -67,20 +91,4 @@ async def write_brief(
     brief = result.parsed
     assert brief is not None
 
-    criteria = _clean(brief.acceptance_criteria, MAX_CRITERIA)
-    if not criteria:
-        raise BriefError("the brief has no acceptance criteria")
-    goal = brief.goal.strip()[:MAX_ITEM_CHARS]
-    if not goal:
-        raise BriefError("the brief has no goal")
-    return TaskBrief(
-        goal=goal,
-        acceptance_criteria=criteria,
-        likely_files=[f for f in brief.likely_files if _safe_file(f, known_files)][
-            :MAX_LIST
-        ],
-        # Halo runs this command itself, so it comes from the project note, never the model.
-        test_cmd=test_cmd,
-        constraints=_clean(brief.constraints, MAX_LIST),
-        out_of_scope=_clean(brief.out_of_scope, MAX_LIST),
-    )
+    return sanitize_brief(brief, known_files=known_files, test_cmd=test_cmd)

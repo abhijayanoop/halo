@@ -18,12 +18,13 @@ from urllib.parse import parse_qs, urlsplit
 
 from fastapi import FastAPI, HTTPException, Request, WebSocket
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from starlette.types import ASGIApp, Receive, Scope, Send
 from starlette.websockets import WebSocketDisconnect
 
 from halo.bootstrap import Halo
-from halo.core.contracts import ApprovalDecision, ApprovalGrant, HaloEvent
+from halo.core.code_decisions import Action, CodeDecision
+from halo.core.contracts import ApprovalDecision, ApprovalGrant, HaloEvent, TaskBrief
 from halo.core.events import new_event_id
 from halo.memory.events import approved_event, proposed_event, rejected_event
 from halo.memory.store import MemoryStore
@@ -35,7 +36,7 @@ UI_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
 TOKEN_HEADER = "x-halo-token"
 TOKEN_ENV = "HALO_API_TOKEN"
 # Everything that acts on, or reveals, a run. /health and the UI's own files stay open.
-PROTECTED_PATHS = {"/run", "/approve", "/events"}
+PROTECTED_PATHS = {"/run", "/approve", "/code/decision", "/events"}
 
 
 def _retrieve(task: asyncio.Future[Any]) -> None:
@@ -98,6 +99,14 @@ class StopBody(BaseModel):
 class MemoryDecisionBody(BaseModel):
     candidate_id: str
     note: str | None = None  # where to write an approved memory; default by subject
+
+
+class CodeDecisionBody(BaseModel):
+    run_id: str
+    approval_id: str
+    action: Action
+    brief: TaskBrief | None = None
+    feedback: str | None = Field(default=None, max_length=2000)
 
 
 class ApproveBody(BaseModel):
@@ -285,6 +294,25 @@ def create_app(
                 resuming.discard(body.run_id)
 
         spawn(resume())
+        return {"ok": True}
+
+    @app.post("/code/decision")
+    async def code_decision(
+        body: CodeDecisionBody, request: Request
+    ) -> dict[str, bool]:
+        halo: Halo = request.app.state.halo
+        decisions = halo.code_decisions
+        if not decisions.owns(body.run_id, body.approval_id):
+            if decisions.has_pending(body.run_id):
+                raise HTTPException(409, "that card is no longer the one pending")
+            raise HTTPException(409, "that run is not waiting on a coding card")
+        decision = CodeDecision(
+            action=body.action, brief=body.brief, feedback=body.feedback
+        )
+        try:
+            decisions.resolve(body.run_id, body.approval_id, decision)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from None
         return {"ok": True}
 
     def _memory(request: Request) -> MemoryStore:
