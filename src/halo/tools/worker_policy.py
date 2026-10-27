@@ -5,6 +5,7 @@ run unasked; anything else asks, as high risk. Shell metacharacters are never
 inside an unasked command, so an allowed prefix cannot smuggle a second command.
 """
 
+import re
 import shlex
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,6 +23,9 @@ NETWORK_TOOLS = ("WebFetch", "WebSearch")
 ALLOWED_TOOLS = [*READ_TOOLS, *EDIT_TOOLS]
 DISALLOWED_TOOLS = list(NETWORK_TOOLS)
 
+# A Windows drive or UNC prefix that this OS would read as a relative name (on macOS
+# or Linux "C:/x" is a file called "C:") is never a path inside a worktree.
+_FOREIGN_ROOT = re.compile(r"^(?:[A-Za-z]:|[\\/]{2})")
 _SHELL_META = set(";&|`$<>\n\r(){}")
 _PATH_KEYS = ("file_path", "notebook_path", "path")
 _GIT_FORBIDDEN = (
@@ -53,6 +57,8 @@ def allowed_tools(test_cmd: str) -> list[str]:
 
 def _inside(worktree: Path, raw: str) -> Path | None:
     """The resolved path if it stays inside the worktree (symlinks followed), else None."""
+    if _FOREIGN_ROOT.match(raw) and not Path(raw).is_absolute():
+        return None
     root = worktree.resolve()
     try:
         path = (root / raw).resolve()
