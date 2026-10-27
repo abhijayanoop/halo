@@ -28,18 +28,23 @@ linux = ["code"]
 # The submission target: Nemotron on Nebius Token Factory. Only runs on this
 # profile produce published numbers.
 [profiles.token-factory.api]
-base_url = "UNSET-copy-the-base-url-from-the-token-factory-docs"
+base_url = "https://api.tokenfactory.nebius.com/v1/"
 key_env = "NEBIUS_API_KEY"
 
+# Ids as listed by the Token Factory models endpoint (2026-10-27). Prices are not
+# set until read from the console, so costs are flagged as not known.
 [profiles.token-factory.models.nano]
-id = "UNSET-nano-model-id"
+id = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
 
 [profiles.token-factory.models.super]
-id = "UNSET-super-model-id"
+id = "nvidia/nemotron-3-super-120b-a12b"
 
 [profiles.token-factory.models.ultra]
-id = "UNSET-ultra-model-id"
+id = "nvidia/Nemotron-3-Ultra-550b-a55b"
 
+# Token Factory lists no "Nano Omni". The nearest are nvidia/Nemotron-3.5-Super-VL
+# and nvidia/Nemotron-3_5-Lightning. Nothing uses this tier yet, so it stays unset
+# (the client refuses to call it) until the choice is made.
 [profiles.token-factory.models.omni]
 id = "UNSET-nano-omni-model-id"
 
