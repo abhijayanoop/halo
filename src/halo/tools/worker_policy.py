@@ -18,6 +18,8 @@ Verdict = Literal["allow", "ask", "deny"]
 READ_TOOLS = ("Read", "Glob", "Grep")
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 NETWORK_TOOLS = ("WebFetch", "WebSearch")
+# Claude Code runs commands through "Bash", or "PowerShell" on Windows: same rules for both.
+SHELL_TOOLS = ("Bash", "PowerShell")
 
 # No bare "Bash": shell commands are listed per command (see `allowed_tools`).
 ALLOWED_TOOLS = [*READ_TOOLS, *EDIT_TOOLS]
@@ -26,7 +28,7 @@ DISALLOWED_TOOLS = list(NETWORK_TOOLS)
 # A Windows drive or UNC prefix that this OS would read as a relative name (on macOS
 # or Linux "C:/x" is a file called "C:") is never a path inside a worktree.
 _FOREIGN_ROOT = re.compile(r"^(?:[A-Za-z]:|[\\/]{2})")
-_SHELL_META = set(";&|`$<>\n\r(){}")
+_SHELL_META = set(";&|`$<>\n\r(){}@")
 _PATH_KEYS = ("file_path", "notebook_path", "path")
 _GIT_FORBIDDEN = (
     "--output",
@@ -121,6 +123,6 @@ def decide_tool(
             if tool in EDIT_TOOLS and _in_git_dir(worktree, path):
                 return ToolDecision("deny", "high", "Git's own folder is off limits")
         return ToolDecision("allow", "medium" if tool in EDIT_TOOLS else "low")
-    if tool == "Bash":
+    if tool in SHELL_TOOLS:
         return _bash(str(args.get("command", "")), worktree, test_cmd)
     return ToolDecision("ask", "high", f"Halo does not know the tool {tool}")
