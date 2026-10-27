@@ -1,5 +1,5 @@
 # Progress
-_Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold, contracts, spikes), Day 2 = Oct 11 (core brain, PLAN.md "Day 1"), Day 3 = HUD, character and memory (PLAN.md "Day 2" and "Day 3")._
+_Last updated: 2026-10-28. Day numbers are the user's: Day 1 = Oct 10 (scaffold, contracts, spikes), Day 2 = Oct 11 (core brain, PLAN.md "Day 1"), Day 3 = HUD, character and memory (PLAN.md "Day 2" and "Day 3"), Day 4 = the coding session (PLAN.md "Day 4")._
 
 ## Done
 - Day 1: scaffold, frozen contracts + schema export, CI, spikes for ASR, pywebview and claude-agent-sdk (`spikes/RESULTS.md`).
@@ -20,17 +20,24 @@ _Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
   **Live, published numbers (2026-10-27):** tool-calling and JSON-schema spike 60/60 on all three tiers, median 1.0-1.2 s; router 20/20 on the golden set with the shipped config
   (thinking on), mean 1.7 s, max 10.5 s (thinking off: 18/20 at 0.8 s). See `spikes/RESULTS.md`.
 - Dev profile (nvidia-api, dev numbers only): thinking off cut a Nano call from about 4 s to under 1 s there.
-- Tests: 681 Python (`-m "not live"`), 157 UI; ruff, pyright, tsc and the UI build are clean.
+- Day 4, the coding session (PRs #6-#14 merged, 2026-10-27): `Tainted[T]` + a minimal `security/reader.py`; typed project notes with safe `last_stop` / session-log writes;
+  `tools/repo_map.py` (HEAD-cached) and `tools/git_ops.py` (worktrees under `../.halo-worktrees`, local-only merge); the brief writer (`TaskBrief`, `test_cmd` always from the
+  project note) and the Ultra reviewer (diff only as a fenced data block, verdict stays `Tainted`); `tools/claude_worker.py` (explicit tool list, PreToolUse hook + `can_use_tool`
+  card, turn/cost/time caps; permission cards answered through the shared `/approve`); the `code.task` skill (brief card -> worktree -> worker -> Halo's own test run -> review ->
+  result card with Merge / Iterate / Discard, answered through `POST /code/decision`); the HUD brief and result cards; `work.start` (no model call: where you stopped + up to three
+  proposals from project notes and today's journal, clickable in the Now tab). `[coding]` limits in config: 150 rupees, 30 turns, 900 s, 600 s for the test run.
+- **Live run, 2026-10-28 (Token Factory, real worker, driven over the API, merged on the user's go):** in `ai-eng-prep`, "add tests for token_count.py ... and fix the stray literal
+  backslash-n" routed to `code.task`; the brief (edited down from 10 criteria to 5) was approved; Claude Code wrote `test_token_count.py` (8 tests) and the one-line fix in a
+  worktree; Halo's own test run passed; Ultra said pass with no issues; the merge landed as two local commits on `main` (not pushed) and the worktree and branch were removed.
+  Cost: Nano 0.008 + Super 0.113 + Ultra 0.233 + Claude Code 26.44 = 26.79 rupees. The worker's permission card was NOT seen on screen (no HUD was attached): it timed out and was
+  denied after 5 minutes, and the worker finished without running tests itself. The HUD cards have not been clicked in a real window yet.
+- Tests: 905 Python (`-m "not live"`), 200 UI; ruff, pyright, tsc and the UI build are clean.
 
 ## Next
-- **Day 3 is complete; PR #4 merged into main on 2026-10-27 (4b7beb6).** Live Day 3 check, 2026-10-27, on Token Factory with the real vault (profile now `token-factory`):** "who are you" routed to `chat` and Nano answered (2.8 s); after a
-  restart "what did I pick for the HUD window?" routed to `memory.recall` and answered with the pywebview line and an `obsidian://` link; deleting that line from the note was
-  picked up by the watcher and the file restored byte for byte; "open Notepad" paused on the card and opened Notepad after Allow once. One gap: after the line was deleted Halo
-  did not say "I don't know", because another seeded fact also mentions "HUD window" (the question is matched by keywords only). Recall now requires at least half of the
-  question's meaningful words, which removed the stray "Windows" match.
-- Done: the vault is open in Obsidian; the second HUD fact was removed so deleting the pywebview line now gives "I don't know".
-- Day 4 (the coding session) starts in a fresh session from the plan agreed on 2026-10-27; verify the prices first.
-- Then Day 4, the coding session (plan awaiting approval), security + voice, life skills, evals (the cascade table is a Day 7 item), see docs/PLAN.md.
+- A real HUD run by hand (`uv run halo-app`): brief card, the worker's permission card and the result card on screen, then Merge. This is the real "Done when" check.
+- Fix on branch `fix/worker-powershell-policy` (PR pending): Claude Code's `PowerShell` tool is now treated like `Bash` in the tool policy.
+- Then PLAN Day 5, security + voice (the real Reader, policy engine, egress ledger, `web.read`), life skills, evals (the cascade table is a Day 7 item), see docs/PLAN.md.
+- Day 3 live check (2026-10-27) passed: chat, recall with `obsidian://` links, the vault watcher, and the Notepad permission card.
 
 ## Known issues
 - **Not built:** Pause (a model call in flight has no clean pause point), the mic button (voice is PLAN Day 5), the Approvals, Ledger and History tabs (stubs),
@@ -50,6 +57,13 @@ _Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 - The old folder `C:\Users\abhij\HaloVault` (made by an earlier run) is unused; delete it when convenient.
 - Voice accuracy is weak on live mic input; `sherpa-onnx` transducer variant fails to load (see `spikes/RESULTS.md`).
 - `tests/fixtures/demo_repo` is gitignored (nested .git); regenerate per `spikes/claude_worker_probe.py`.
+- **Coding session gaps:** one Claude Code turn can cost about 13 rupees and a small task cost 26 (the cap is 150); the brief card, the worker's permission card and the result card
+  wait 5 / 5 / 30 minutes before a denial or "kept"; a Halo restart mid-session leaves the worktree on disk with no way back to it; "Open in VS Code" on the result card is not built;
+  the first `uv run` test in a fresh worktree builds a new virtualenv; the brief writer can produce vague criteria (edit them on the card).
+- `python -m halo.api.server` does not serve the HUD page (404 at `/`), so cards cannot be clicked from it; a second launch while one is running overwrites `~/.halo/api-token`,
+  so the running server's token no longer matches. `/stop` and `/memory/*` are not in the token-protected set (only `/run`, `/approve`, `/code/decision` and `/events` are).
+- Symlink protections (a link out of the vault is not followed) are tested but skipped on this Windows account; they run on Linux CI.
+- The `NVIDIA_API_KEY` value was pasted into a chat on 2026-10-28; regenerate it if it was a real key.
 
 ## How to run
 - `uv sync --all-extras` · tests `uv run pytest -m "not live" -q` · `uv run ruff check .` · `uv run pyright`
