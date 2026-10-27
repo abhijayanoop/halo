@@ -22,8 +22,11 @@ def _intent() -> str:
 @pytest.fixture
 def allowlisted_vscode(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     config = tmp_path / "config.toml"
+    # Every platform has a launch command, so the test is the same on Windows,
+    # macOS and the Linux CI runner.
     config.write_text(
-        '[apps.vscode]\naliases = ["vscode"]\n[apps.vscode.command]\nwin32 = ["code"]\n'
+        '[apps.vscode]\naliases = ["vscode"]\n[apps.vscode.command]\n'
+        'win32 = ["code"]\ndarwin = ["code"]\nlinux = ["code"]\n'
     )
     monkeypatch.setenv("HALO_CONFIG", str(config))
 
