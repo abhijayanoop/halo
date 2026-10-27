@@ -1,9 +1,11 @@
 import { useEffect, useMemo } from "react";
 import { createApi } from "./api";
+import { BriefCard } from "./components/BriefCard";
 import { CollapsedBar } from "./components/CollapsedBar";
 import { MoodsPage } from "./components/MoodsPage";
 import { Panel } from "./components/Panel";
 import { PermissionCard } from "./components/PermissionCard";
+import { ResultCard } from "./components/ResultCard";
 import { readParams } from "./connection";
 import { useStore } from "./state/store";
 import { useHaloEvents } from "./useHaloEvents";
@@ -38,7 +40,7 @@ function Hud() {
 
   useEffect(() => {
     // On the permission card Escape means Deny (the card handles it), not collapse.
-    if (view === "card") return;
+    if (view === "card" || view === "brief" || view === "result") return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setExpanded(false);
     };
@@ -46,6 +48,10 @@ function Hud() {
     return () => document.removeEventListener("keydown", onKey);
   }, [setExpanded, view]);
 
+  if (view === "brief")
+    return <BriefCard approval={halo.pendingApprovals[0]} api={api} />;
+  if (view === "result")
+    return <ResultCard approval={halo.pendingApprovals[0]} api={api} />;
   if (view === "card") {
     return (
       <PermissionCard
