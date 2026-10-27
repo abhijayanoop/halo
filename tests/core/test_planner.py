@@ -23,7 +23,7 @@ def _step(tool: str, risk: str = "low", **args) -> dict:
 
 
 def test_only_multi_step_skills_need_a_plan() -> None:
-    assert MULTI_STEP_SKILLS == {"code.task", "trip.plan", "work.start"}
+    assert MULTI_STEP_SKILLS == {"trip.plan", "work.start"}
     assert needs_plan("trip.plan")
     assert not needs_plan("app.open")
     assert not needs_plan("chat")
@@ -68,11 +68,11 @@ async def test_multi_step_skill_is_planned_by_super(make_client, registry) -> No
     )
     client, transport, _ = make_client(reply(body))
     intent = Intent(
-        skill="code.task", args={"task": "add rate limiting"}, confidence=0.9
+        skill="trip.plan", args={"task": "add rate limiting"}, confidence=0.9
     )
     plan = await make_plan(client, registry, "run2", "add rate limiting", intent)
     assert plan.run_id == "run2"
-    assert plan.skill == "code.task"
+    assert plan.skill == "trip.plan"
     assert plan.rationale == "map then brief"
     assert [s.tool for s in plan.steps] == ["repo_map", "task_brief"]
     assert [c["model_id"] for c in transport.calls] == ["super-id"]
@@ -82,7 +82,7 @@ async def test_planner_prompt_carries_the_request_the_intent_and_the_tools(
     make_client, registry
 ) -> None:
     client, transport, _ = make_client(reply(_planned(_step("repo_map"))))
-    intent = Intent(skill="code.task", args={"task": "t"}, confidence=0.9)
+    intent = Intent(skill="trip.plan", args={"task": "t"}, confidence=0.9)
     await make_plan(
         client,
         registry,
@@ -93,7 +93,7 @@ async def test_planner_prompt_carries_the_request_the_intent_and_the_tools(
     )
     text = "\n".join(m["content"] for m in transport.calls[0]["messages"])
     assert "add rate limiting" in text
-    assert "code.task" in text
+    assert "trip.plan" in text
     assert "repo_map" in text and "git_ops" in text
 
 
@@ -101,7 +101,7 @@ async def test_step_using_an_unavailable_tool_is_rejected(
     make_client, registry
 ) -> None:
     client, _, _ = make_client(reply(_planned(_step("rm_rf_everything", "high"))))
-    intent = Intent(skill="code.task", args={}, confidence=0.9)
+    intent = Intent(skill="trip.plan", args={}, confidence=0.9)
     with pytest.raises(PlanError, match="rm_rf_everything"):
         await make_plan(
             client, registry, "r", "x", intent, available_tools=["repo_map"]
@@ -138,3 +138,16 @@ async def test_bad_args_do_not_stop_planning_the_skill_reports_them_later(
     intent = Intent(skill="app.open", args={}, confidence=0.9)
     plan = await make_plan(client, registry, "r", "open", intent)
     assert plan.steps[0].risk == "low"  # the skill manifest's own risk
+
+
+async def test_code_task_is_one_direct_step_with_no_planner_call(
+    make_client, registry
+) -> None:
+    client, transport, _ = make_client()
+    args = {"task": "add rate limiting", "mode": "implement", "project": "halo"}
+    intent = Intent(skill="code.task", args=args, confidence=0.9)
+    plan = await make_plan(client, registry, "run1", "add rate limiting", intent)
+    assert [(s.tool, s.args, s.risk) for s in plan.steps] == [
+        ("code.task", args, "low")
+    ]
+    assert transport.calls == []

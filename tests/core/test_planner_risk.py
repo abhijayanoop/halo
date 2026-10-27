@@ -24,7 +24,7 @@ def _plan_json(tool: str, risk: str, **args) -> str:
 
 async def _risk_of(make_client, registry, tool: str, risk: str, **args) -> str:
     client, _, _ = make_client(reply(_plan_json(tool, risk, **args)))
-    intent = Intent(skill="code.task", args={}, confidence=0.9)
+    intent = Intent(skill="trip.plan", args={}, confidence=0.9)
     plan = await make_plan(client, registry, "r", "x", intent)
     return plan.steps[0].risk
 

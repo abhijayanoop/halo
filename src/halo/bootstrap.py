@@ -12,7 +12,9 @@ from pathlib import Path
 from halo.api.events import EventBus
 from halo.character.director import MoodDirector
 from halo.character.lines import StatusLines
+from halo.coding.session import CodeDeps
 from halo.config import HaloConfig
+from halo.core.code_decisions import CodeDecisions
 from halo.core.contracts import HaloEvent
 from halo.core.graph import GraphDeps, build_graph, open_checkpointer
 from halo.core.runner import HaloRunner
@@ -23,8 +25,10 @@ from halo.memory.watch import VaultWatcher
 from halo.models.client import ModelClient, build_client
 from halo.skills.registry import SkillRegistry, default_skills_dir
 from halo.telemetry.recorder import FlightRecorder
+from halo.tools.claude_worker import ClaudeCodeWorker, CodingWorker
 
 ClientFactory = Callable[[Callable[[HaloEvent], None]], ModelClient]
+WorkerFactory = Callable[[Callable[[HaloEvent], None], WorkerApprovals], CodingWorker]
 
 
 def status_lines_for(
@@ -35,6 +39,23 @@ def status_lines_for(
     template lines always work."""
     env = os.environ if env is None else env
     return StatusLines(client) if env.get("HALO_STATUS_LINES") == "1" else None
+
+
+def _claude_worker(config: HaloConfig) -> WorkerFactory:
+    def make(
+        emit: Callable[[HaloEvent], None], approvals: WorkerApprovals
+    ) -> CodingWorker:
+        return ClaudeCodeWorker(
+            emit,
+            approvals,
+            usd_to_inr=config.usd_to_inr,
+            max_cost_inr=config.coding.max_cost_inr,
+            max_turns=config.coding.max_turns,
+            timeout_s=config.coding.timeout_s,
+            approval_timeout_s=config.coding.approval_timeout_s,
+        )
+
+    return make
 
 
 def default_home() -> Path:
@@ -48,6 +69,7 @@ class Halo:
     registry: SkillRegistry
     memory: MemoryStore | None = None
     worker_approvals: WorkerApprovals = field(default_factory=WorkerApprovals)
+    code_decisions: CodeDecisions = field(default_factory=CodeDecisions)
 
 
 def vault_path(config: HaloConfig, home: Path | None) -> Path:
@@ -65,6 +87,7 @@ async def open_halo(
     *,
     home: Path | None = None,
     client_factory: ClientFactory | None = None,
+    worker_factory: WorkerFactory | None = None,
     registry: SkillRegistry | None = None,
     watch: bool = False,
 ) -> AsyncIterator[Halo]:
@@ -77,9 +100,8 @@ async def open_halo(
     explicit_home = home is not None
     home = home or default_home()
     bus = EventBus()
-    memory = MemoryStore(
-        vault_path(config, home if explicit_home else None), home / "memory.db"
-    )
+    vault = vault_path(config, home if explicit_home else None)
+    memory = MemoryStore(vault, home / "memory.db")
     await asyncio.to_thread(memory.start)
     make_client = client_factory or (
         lambda emit: build_client(config, emit=emit, local_texts=memory.local_texts)
@@ -95,8 +117,21 @@ async def open_halo(
             recorder.attached(bus),
             MoodDirector(bus, lines=status_lines_for(client)),
         ):
+            worker_approvals = WorkerApprovals()
+            code_decisions = CodeDecisions()
+            worker = (worker_factory or _claude_worker(config))(
+                bus.publish, worker_approvals
+            )
+            code = CodeDeps(
+                worker,
+                code_decisions,
+                vault,
+                config.coding,
+                cache_dir=home / "cache" / "repo_map",
+            )
             graph = build_graph(
-                GraphDeps(client, registry, bus.publish, memory=memory), checkpointer
+                GraphDeps(client, registry, bus.publish, memory=memory, code=code),
+                checkpointer,
             )
             if watcher is not None:
                 watcher.start()
@@ -106,7 +141,14 @@ async def open_halo(
                     extractor = extractor_for(bus, client, memory)
                     if extractor is not None:
                         await stack.enter_async_context(extractor)
-                    yield Halo(bus, HaloRunner(graph, bus.publish), registry, memory)
+                    yield Halo(
+                        bus,
+                        HaloRunner(graph, bus.publish),
+                        registry,
+                        memory,
+                        worker_approvals,
+                        code_decisions,
+                    )
             finally:
                 if watcher is not None:
                     watcher.stop()

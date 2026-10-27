@@ -16,7 +16,7 @@ def _plan(*apps: str) -> str:
 
 
 def _intent() -> str:
-    return json.dumps({"skill": "code.task", "args": {}, "confidence": 0.95})
+    return json.dumps({"skill": "trip.plan", "args": {}, "confidence": 0.95})
 
 
 @pytest.fixture
