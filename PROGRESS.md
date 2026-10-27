@@ -23,13 +23,13 @@ _Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 - Tests: 681 Python (`-m "not live"`), 157 UI; ruff, pyright, tsc and the UI build are clean.
 
 ## Next
-- **Live Day 3 check, 2026-10-27, on Token Factory with the real vault (profile now `token-factory`):** "who are you" routed to `chat` and Nano answered (2.8 s); after a
+- **Day 3 is complete; PR #4 merged into main on 2026-10-27 (4b7beb6).** Live Day 3 check, 2026-10-27, on Token Factory with the real vault (profile now `token-factory`):** "who are you" routed to `chat` and Nano answered (2.8 s); after a
   restart "what did I pick for the HUD window?" routed to `memory.recall` and answered with the pywebview line and an `obsidian://` link; deleting that line from the note was
   picked up by the watcher and the file restored byte for byte; "open Notepad" paused on the card and opened Notepad after Allow once. One gap: after the line was deleted Halo
   did not say "I don't know", because another seeded fact also mentions "HUD window" (the question is matched by keywords only). Recall now requires at least half of the
   question's meaningful words, which removed the stray "Windows" match.
-- You: open `HaloVault` in Obsidian once ("Open folder as vault"), and add the Token Factory prices from the console (USD per million tokens) so ₹ costs are real.
-- Merge PR #4 when you say so.
+- Done: the vault is open in Obsidian; the second HUD fact was removed so deleting the pywebview line now gives "I don't know".
+- Day 4 (the coding session) starts in a fresh session from the plan agreed on 2026-10-27; verify the prices first.
 - Then Day 4, the coding session (plan awaiting approval), security + voice, life skills, evals (the cascade table is a Day 7 item), see docs/PLAN.md.
 
 ## Known issues
@@ -40,7 +40,7 @@ _Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
   superseded; a proposal cannot be edited before approving; extraction is opt-in (`HALO_MEMORY_EXTRACT=1`).
 - Thinking is off on the nvidia-api dev profile for every tier (planning quality on Super/Ultra unmeasured there); on Token Factory it is on.
 - Omni tier is unset on Token Factory (no Nano Omni listed); nothing uses it yet.
-- Token Factory prices are not in the config, so costs show as not known.
+- Token Factory prices in the config are unverified third-party estimates (see the warning in config.default.toml); confirm them in the Nebius console before publishing any cost figure.
 - A recorded event is dropped if a subscriber falls 1000 events behind (bounded queue); the flight recorder drains far faster, but it is a possible gap.
 - `retry()` after a Stop is not possible (the run is finished), and a stopped run's checkpoint is left as it was.
 - `~/.halo/api-token` is written with `chmod 600`, which does not change the ACL on Windows (it relies on the profile folder's default ACL).

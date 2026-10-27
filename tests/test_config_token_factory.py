@@ -37,3 +37,23 @@ def test_only_models_that_are_nemotron_are_used() -> None:
     """The project rule: LLM calls go only to NVIDIA Nemotron."""
     for tier, spec in load_config().profiles["token-factory"].models.items():
         assert spec.id.startswith("UNSET") or "nemotron" in spec.id.lower(), tier
+
+
+def test_the_three_tiers_have_estimated_prices_so_costs_are_not_unknown() -> None:
+    """Prices are third-party estimates (see the comment in the config), not yet
+    confirmed in the Nebius console; they make the rupee cost an estimate, not a blank."""
+    from decimal import Decimal
+
+    models = load_config().profiles["token-factory"].models
+    assert (models["nano"].usd_per_m_input, models["nano"].usd_per_m_output) == (
+        Decimal("0.06"),
+        Decimal("0.24"),
+    )
+    assert (models["super"].usd_per_m_input, models["super"].usd_per_m_output) == (
+        Decimal("0.30"),
+        Decimal("0.90"),
+    )
+    assert (models["ultra"].usd_per_m_input, models["ultra"].usd_per_m_output) == (
+        Decimal("1.00"),
+        Decimal("3.00"),
+    )

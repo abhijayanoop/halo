@@ -33,14 +33,24 @@ key_env = "NEBIUS_API_KEY"
 
 # Ids as listed by the Token Factory models endpoint (2026-10-27). Prices are not
 # set until read from the console, so costs are flagged as not known.
+# WARNING: the prices below (USD per million tokens) are ESTIMATES copied on
+# 2026-10-27 from third-party listings (typingmind, benchlm), not from Nebius's own
+# price list, which could not be read. Confirm them in the Nebius console before
+# publishing any cost figure, then delete this warning.
 [profiles.token-factory.models.nano]
 id = "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B"
+usd_per_m_input = 0.06
+usd_per_m_output = 0.24
 
 [profiles.token-factory.models.super]
 id = "nvidia/nemotron-3-super-120b-a12b"
+usd_per_m_input = 0.30
+usd_per_m_output = 0.90
 
 [profiles.token-factory.models.ultra]
 id = "nvidia/Nemotron-3-Ultra-550b-a55b"
+usd_per_m_input = 1.00
+usd_per_m_output = 3.00
 
 # Token Factory lists no "Nano Omni". The nearest are nvidia/Nemotron-3.5-Super-VL
 # and nvidia/Nemotron-3_5-Lightning. Nothing uses this tier yet, so it stays unset
