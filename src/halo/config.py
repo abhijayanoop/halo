@@ -80,7 +80,7 @@ class CodingConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    max_cost_inr: Decimal = Decimal(40)
+    max_cost_inr: Decimal = Decimal(150)
     max_turns: int = Field(default=30, ge=1)
     timeout_s: float = Field(default=900, gt=0)
     approval_timeout_s: float = Field(default=300, gt=0)

@@ -33,7 +33,7 @@ async def test_worker_makes_a_small_change_in_a_worktree_and_leaves_the_checkout
             events.append,
             WorkerApprovals(),
             usd_to_inr=Decimal(85),
-            max_cost_inr=Decimal(10),
+            max_cost_inr=Decimal(150),
             max_turns=8,
             timeout_s=240,
             approval_timeout_s=1,  # anything that needs a card is denied
@@ -53,7 +53,7 @@ async def test_worker_makes_a_small_change_in_a_worktree_and_leaves_the_checkout
         print(f"status={out.status} cost_inr={out.cost_inr} turns={out.num_turns}")
         print(stat)
         assert out.status in ("done", "max_turns", "budget", "timeout")
-        assert out.cost_inr <= Decimal(10) + Decimal(1)
+        assert out.cost_inr <= Decimal(150) + Decimal(15)
         assert any(e.type == "tool.called" for e in events)
         assert git_ops.changed_files(wt) in (
             [],

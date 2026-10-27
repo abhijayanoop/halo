@@ -95,7 +95,7 @@ async def test_options_confine_the_worker_to_its_worktree(tmp_path: Path) -> Non
     assert o.permission_mode == "acceptEdits"
     assert o.setting_sources == []
     assert o.max_turns == 30
-    assert o.max_budget_usd == pytest.approx(0.5)  # 40 rupees at 80 per dollar
+    assert o.max_budget_usd == pytest.approx(1.875)  # 150 rupees at 80 per dollar
     assert "Bash(uv run pytest -q *)" in o.allowed_tools
     assert "Bash" not in o.allowed_tools
     assert {"WebFetch", "WebSearch"} <= set(o.disallowed_tools)

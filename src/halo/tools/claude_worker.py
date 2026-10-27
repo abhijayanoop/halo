@@ -116,7 +116,7 @@ class ClaudeCodeWorker:
         approvals: WorkerApprovals,
         *,
         usd_to_inr: Decimal,
-        max_cost_inr: Decimal = Decimal(40),
+        max_cost_inr: Decimal = Decimal(150),
         max_turns: int = 30,
         timeout_s: float = 900,
         approval_timeout_s: float = 300,
