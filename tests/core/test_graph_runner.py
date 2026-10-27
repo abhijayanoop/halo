@@ -144,7 +144,7 @@ async def test_always_for_task_skips_asking_again_for_the_same_medium_tool(
         ("app.open", "medium", {"app": "vscode"}),
         ("app.open", "medium", {"app": "vscode"}),
     )
-    async with open_runner(reply(_intent("code.task")), reply(two_steps)) as (
+    async with open_runner(reply(_intent("trip.plan")), reply(two_steps)) as (
         runner,
         events,
         _,
@@ -163,7 +163,7 @@ async def test_always_for_task_never_covers_a_high_risk_step(open_runner) -> Non
     two_steps = _plan(
         ("app.open", "high", {"app": "vscode"}), ("app.open", "high", {"app": "vscode"})
     )
-    async with open_runner(reply(_intent("code.task")), reply(two_steps)) as (
+    async with open_runner(reply(_intent("trip.plan")), reply(two_steps)) as (
         runner,
         events,
         _,

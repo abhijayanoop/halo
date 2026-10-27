@@ -67,7 +67,7 @@ async def test_a_click_for_the_previous_step_cannot_approve_the_next_one(
     open_runner,
 ) -> None:
     plan = _two_high_risk_steps()
-    async with open_runner(reply(_intent("code.task")), reply(plan)) as (
+    async with open_runner(reply(_intent("trip.plan")), reply(plan)) as (
         runner,
         _,
         _,

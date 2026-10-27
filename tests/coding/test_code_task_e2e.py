@@ -1,4 +1,4 @@
-"""A request through the whole app: router -> plan -> code.task -> cards -> merge."""
+"""A request through the whole app: router -> code.task (one direct step) -> cards -> merge."""
 
 import asyncio
 import json
@@ -64,14 +64,6 @@ async def test_a_coding_request_runs_end_to_end_and_merges_only_on_the_click(
     args = {"task": "add a hello file", "mode": "implement"}
     script = [
         reply(json.dumps({"skill": "code.task", "args": args, "confidence": 0.95})),
-        reply(
-            json.dumps(
-                {
-                    "rationale": "one coding session",
-                    "steps": [{"tool": "code.task", "args": args, "risk": "low"}],
-                }
-            )
-        ),
         reply(
             json.dumps(
                 {
