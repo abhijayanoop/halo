@@ -23,9 +23,12 @@ _Last updated: 2026-10-27. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 - Tests: 681 Python (`-m "not live"`), 157 UI; ruff, pyright, tsc and the UI build are clean.
 
 ## Next
-- You: set `HALO_PROFILE=token-factory` in `.env` (it still says `nvidia-api`, which overrides the config), open `HaloVault` in Obsidian once ("Open folder as vault"), and add the
-  Token Factory prices from the console (USD per million tokens) so ₹ costs are real. Then I run the live Day 3 "done when": restart, ask "what did I pick for the HUD window?",
-  get the answer with a link, delete the line in Obsidian, ask again, get "I don't know"; and a live "who are you" and the live Notepad approval.
+- **Live Day 3 check, 2026-10-27, on Token Factory with the real vault (profile now `token-factory`):** "who are you" routed to `chat` and Nano answered (2.8 s); after a
+  restart "what did I pick for the HUD window?" routed to `memory.recall` and answered with the pywebview line and an `obsidian://` link; deleting that line from the note was
+  picked up by the watcher and the file restored byte for byte; "open Notepad" paused on the card and opened Notepad after Allow once. One gap: after the line was deleted Halo
+  did not say "I don't know", because another seeded fact also mentions "HUD window" (the question is matched by keywords only). Recall now requires at least half of the
+  question's meaningful words, which removed the stray "Windows" match.
+- You: open `HaloVault` in Obsidian once ("Open folder as vault"), and add the Token Factory prices from the console (USD per million tokens) so ₹ costs are real.
 - Merge PR #4 when you say so.
 - Then Day 4, the coding session (plan awaiting approval), security + voice, life skills, evals (the cascade table is a Day 7 item), see docs/PLAN.md.
 

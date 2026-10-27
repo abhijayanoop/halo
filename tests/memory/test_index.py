@@ -155,3 +155,50 @@ def test_the_best_match_comes_first(index: MemoryIndex, vault: Path) -> None:
     )
     found = index.search("coffee grinder machine")
     assert found[0].fact == "coffee beans grinder coffee machine"
+
+
+def test_a_fact_that_matches_only_one_of_several_words_is_not_an_answer(
+    index: MemoryIndex, vault: Path
+) -> None:
+    """Matching a single stray word ("Windows" vs "window") must not count as relevant."""
+    index.reindex_note(
+        _note(
+            vault,
+            "a.md",
+            _bullet("Picked pywebview for the HUD window", 1),
+            _bullet("I work on Windows 11 and use Git Bash", 2),
+        )
+    )
+    found = index.search("what did I pick for the HUD window")
+    assert [i.fact for i in found] == ["Picked pywebview for the HUD window"]
+
+
+def test_when_the_only_matching_line_is_gone_nothing_is_found(
+    index: MemoryIndex, vault: Path
+) -> None:
+    path = _note(vault, "a.md", _bullet("I work on Windows 11 and use Git Bash", 2))
+    index.reindex_note(path)
+    assert index.search("what did I pick for the HUD window") == []
+
+
+def test_a_two_word_question_needs_at_least_one_of_them(
+    index: MemoryIndex, vault: Path
+) -> None:
+    index.reindex_note(_note(vault, "a.md", _bullet("I use Python for my work", 1)))
+    assert index.search("what do I use for work")
+
+
+def test_half_of_the_meaningful_words_is_enough_but_fewer_is_not(
+    index: MemoryIndex, vault: Path
+) -> None:
+    index.reindex_note(
+        _note(
+            vault,
+            "a.md",
+            _bullet("alpha beta", 1),
+            _bullet("alpha only", 2),
+        )
+    )
+    # four words, so two must match: the first fact has two, the second has one
+    found = index.search("alpha beta gamma delta")
+    assert [i.fact for i in found] == ["alpha beta"]

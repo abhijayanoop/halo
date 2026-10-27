@@ -186,10 +186,14 @@ class MemoryIndex:
     # -- reading ------------------------------------------------------------------
 
     def search(self, query: str, limit: int = 20) -> list[MemoryItem]:
-        """Items that match any meaningful word of `query`, best match first."""
-        match = _match_query(query)
-        if not match:
+        """Items that match at least half of the meaningful words of `query`
+        (rounded up), best match first. One stray word is not an answer: a
+        question about the "HUD window" should not return a line that only says
+        "Windows"."""
+        words = query_words(query)
+        if not words:
             return []
+        needed = -(-len(words) // 2)  # half, rounded up
         with self._lock:
             rows = self._db.execute(
                 "SELECT i.note_path, i.block_id, i.fact, i.source, i.trust, i.created_at,"
@@ -197,9 +201,25 @@ class MemoryIndex:
                 " FROM items_fts f JOIN items i"
                 "   ON i.note_path = f.note_path AND i.block_id = f.block_id"
                 " WHERE items_fts MATCH ? ORDER BY bm25(items_fts) LIMIT ?",
-                (match, limit),
+                (_match_query(query), max(limit * 5, 50)),
             ).fetchall()
-        return [_item(row) for row in rows]
+            hits: dict[tuple[str, str], int] = {}
+            if needed > 1:
+                # How many of the words each item contains, counted with the same
+                # stemmed tokenizer the index uses, so "picked" matches "pick".
+                for word in words:
+                    found = self._db.execute(
+                        "SELECT note_path, block_id FROM items_fts WHERE items_fts MATCH ?",
+                        (f'"{word}"',),
+                    ).fetchall()
+                    for key in found:
+                        hits[(key[0], key[1])] = hits.get((key[0], key[1]), 0) + 1
+        kept = [
+            row
+            for row in rows
+            if needed <= 1 or hits.get((row[0], row[1]), 0) >= needed
+        ]
+        return [_item(row) for row in kept[:limit]]
 
     def items(self) -> list[MemoryItem]:
         with self._lock:
