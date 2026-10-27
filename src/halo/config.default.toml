@@ -8,6 +8,13 @@ usd_to_inr = 85
 # (for example HALO_PROFILE=nvidia-api in .env while developing).
 profile = "token-factory"
 
+# Limits for one coding work session. A run that reaches one stops cleanly.
+[coding]
+max_cost_inr = 40
+max_turns = 30
+timeout_s = 900
+approval_timeout_s = 300
+
 # Apps Halo may open without asking. Anything not listed here asks first.
 # `command` is keyed by sys.platform and is run as an argument list, never
 # through a shell.

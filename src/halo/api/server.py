@@ -251,6 +251,13 @@ def create_app(
     async def approve(body: ApproveBody, request: Request) -> dict[str, bool]:
         halo: Halo = request.app.state.halo
         not_waiting = HTTPException(409, "that run is not waiting for approval")
+        # A card from inside a coding worker is answered here too, bound by the same id.
+        workers = halo.worker_approvals
+        if workers.owns(body.run_id, body.approval_id):
+            workers.resolve(body.run_id, body.approval_id, body.grant)
+            return {"ok": True}
+        if workers.has_pending(body.run_id):
+            raise HTTPException(409, "that approval is no longer the one pending")
         if body.run_id in resuming:
             raise not_waiting
         # Claim the run before any await, so two simultaneous requests cannot both pass.

@@ -6,7 +6,7 @@ import asyncio
 import os
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from halo.api.events import EventBus
@@ -16,6 +16,7 @@ from halo.config import HaloConfig
 from halo.core.contracts import HaloEvent
 from halo.core.graph import GraphDeps, build_graph, open_checkpointer
 from halo.core.runner import HaloRunner
+from halo.core.worker_approvals import WorkerApprovals
 from halo.memory.extract import extractor_for
 from halo.memory.store import MemoryStore
 from halo.memory.watch import VaultWatcher
@@ -46,6 +47,7 @@ class Halo:
     runner: HaloRunner
     registry: SkillRegistry
     memory: MemoryStore | None = None
+    worker_approvals: WorkerApprovals = field(default_factory=WorkerApprovals)
 
 
 def vault_path(config: HaloConfig, home: Path | None) -> Path:

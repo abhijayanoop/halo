@@ -75,6 +75,17 @@ class VaultConfig(BaseModel):
     path: Path | None = None
 
 
+class CodingConfig(BaseModel):
+    """Limits for one coding work session (Claude Code in a worktree)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    max_cost_inr: Decimal = Decimal(40)
+    max_turns: int = Field(default=30, ge=1)
+    timeout_s: float = Field(default=900, gt=0)
+    approval_timeout_s: float = Field(default=300, gt=0)
+
+
 class ProfileConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -105,6 +116,7 @@ class HaloConfig(BaseSettings):
     api: ApiConfig = Field(default_factory=ApiConfig)
     models: dict[ModelTier, ModelSpec] = Field(default_factory=dict)
     vault: VaultConfig = Field(default_factory=VaultConfig)
+    coding: CodingConfig = Field(default_factory=CodingConfig)
     usd_to_inr: Decimal = Decimal(85)
 
     @model_validator(mode="after")
