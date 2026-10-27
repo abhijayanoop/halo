@@ -14,6 +14,8 @@ max_cost_inr = 150
 max_turns = 30
 timeout_s = 900
 approval_timeout_s = 300
+test_timeout_s = 600
+result_timeout_s = 1800
 
 # Apps Halo may open without asking. Anything not listed here asks first.
 # `command` is keyed by sys.platform and is run as an argument list, never

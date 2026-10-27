@@ -19,6 +19,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
+from halo.coding.session import CodeDeps
 from halo.core.approval import apply_grant, needs_approval
 from halo.core.context import HaloContext
 from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType, Step
@@ -50,6 +51,8 @@ class GraphDeps:
     grants: dict[str, list[str]] = field(default_factory=dict)
     # The vault: what Halo knows goes into prompts, and the memory skills use it.
     memory: MemoryStore | None = None
+    # The coding work session (worker, cards, vault); None when not set up.
+    code: CodeDeps | None = None
 
 
 def checkpoint_serde() -> JsonPlusSerializer:
@@ -221,6 +224,7 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
                 # Only a step that needed a yes carries one; a low-risk step is never "approved".
                 approved=state["approved"] and step.risk != "low",
                 memory=deps.memory,
+                code=deps.code,
             )
             try:
                 result = await deps.registry.get(step.tool).module.run(ctx, step.args)

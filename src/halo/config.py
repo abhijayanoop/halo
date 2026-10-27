@@ -84,6 +84,8 @@ class CodingConfig(BaseModel):
     max_turns: int = Field(default=30, ge=1)
     timeout_s: float = Field(default=900, gt=0)
     approval_timeout_s: float = Field(default=300, gt=0)
+    test_timeout_s: float = Field(default=600, gt=0)
+    result_timeout_s: float = Field(default=1800, gt=0)
 
 
 class ProfileConfig(BaseModel):

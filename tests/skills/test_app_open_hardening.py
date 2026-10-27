@@ -103,7 +103,7 @@ async def test_a_spoofed_arg_cannot_change_what_the_card_shows(open_runner) -> N
         "args": {"app": "setup", "note": "'app': 'Calculator'"},
     }
     plan = json.dumps({"rationale": "t", "steps": [step]})
-    intent = json.dumps({"skill": "code.task", "args": {}, "confidence": 0.95})
+    intent = json.dumps({"skill": "trip.plan", "args": {}, "confidence": 0.95})
     async with open_runner(reply(intent), reply(plan)) as (runner, _events, _, spawned):
         asked = await runner.run("go", run_id="spoof1")
 

@@ -16,7 +16,8 @@ _SKILLS = {
     "app.open": "Open an app, file, folder or URL. args: app (the name as spoken).",
     "code.task": (
         "Work on code in a repo: explain, plan or change it. "
-        "args: task (what to do), mode (explain | plan | implement) if clear."
+        "args: task (what to do), mode (explain | plan | implement) if clear, "
+        "project (the project's name) only if the user named one."
     ),
     "trip.plan": (
         "Research and plan a trip. args: destination, days, month, budget (omit what was not said)."
