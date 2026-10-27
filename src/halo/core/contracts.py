@@ -196,6 +196,7 @@ class ApprovalRequest(HaloModel):
     eventual decision are separate payloads that only meet at the policy
     engine."""
 
+    approval_id: str  # ulid; binds the user's answer to this exact step
     action: str
     detail: str  # the exact command, or a diff summary
     risk: RiskLevel
@@ -204,8 +205,11 @@ class ApprovalRequest(HaloModel):
 class ApprovalDecision(HaloModel):
     """The POST /approve body that resumes a paused LangGraph node via
     Command(resume=decision). "always_for_task" grants are session-scoped
-    only — enforced by the policy engine, never persisted to disk."""
+    only — enforced by the policy engine, never persisted to disk. The
+    approval_id must match the pending request's, so a stale or repeated click
+    cannot approve a later step."""
 
+    approval_id: str
     grant: ApprovalGrant
 
 

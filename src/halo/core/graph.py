@@ -6,9 +6,10 @@ run itself (started, approval requested/resolved, finished, failed) are emitted
 by `HaloRunner`, not by nodes. Nodes emit only step and tool events.
 """
 
+import asyncio
 from collections.abc import Callable
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -20,11 +21,13 @@ from langgraph.types import interrupt
 
 from halo.core.approval import apply_grant, needs_approval
 from halo.core.context import HaloContext
-from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType
-from halo.core.events import make_event
+from halo.core.contracts import ApprovalRequest, HaloEvent, HaloEventType, Step
+from halo.core.events import make_event, new_event_id
 from halo.core.planner import make_plan
 from halo.core.router import route
 from halo.core.state import HaloState
+from halo.memory.retrieve import Context
+from halo.memory.store import MemoryStore
 from halo.models.client import ModelClient
 from halo.skills.registry import SkillRegistry
 
@@ -41,6 +44,12 @@ class GraphDeps:
     model: ModelClient
     registry: SkillRegistry
     emit: Callable[[HaloEvent], None]
+    # Tools the user granted "always for this task", per run. Kept in memory only:
+    # a grant covers the rest of the task in this session and is never written to
+    # the checkpoint on disk, so a restart asks again.
+    grants: dict[str, list[str]] = field(default_factory=dict)
+    # The vault: what Halo knows goes into prompts, and the memory skills use it.
+    memory: MemoryStore | None = None
 
 
 def checkpoint_serde() -> JsonPlusSerializer:
@@ -64,17 +73,69 @@ def _result_status(result: dict[str, Any]) -> str:
     return "ok"
 
 
+def _describe(registry: SkillRegistry, step: Step) -> str:
+    """The exact action shown on the approval card. A skill may describe its own
+    args (so only validated fields appear); the default is the raw args."""
+    if step.tool in registry:
+        describe = getattr(registry.get(step.tool).module, "describe", None)
+        if callable(describe):
+            try:
+                return str(describe(step.args))
+            except ValueError:
+                pass
+    return str(step.args)
+
+
+def _grantable(registry: SkillRegistry, step: Step) -> bool:
+    """Ask the step's skill whether "always for this task" may cover it."""
+    if step.tool not in registry:
+        return True
+    check = getattr(registry.get(step.tool).module, "grantable", None)
+    return bool(check(step.args)) if callable(check) else True
+
+
 def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
     def step_event(
         state: HaloState, type: HaloEventType, title: str, payload: dict[str, Any]
     ) -> None:
         deps.emit(make_event(state["run_id"], type, title, payload=payload))
 
+    async def recalled(request: str) -> Context:
+        """What Halo knows that bears on this request, ready for a prompt. Local
+        notes are left out by the store; with no memory the context is empty."""
+        if deps.memory is None:
+            return Context("")
+        return await asyncio.to_thread(deps.memory.context, request)
+
     async def route_node(state: HaloState) -> dict[str, Any]:
         step_event(
             state, "step.started", "Working out what you want", {"stage": "route"}
         )
-        intent = await route(deps.model, state["request"], run_id=state["run_id"])
+        known = await recalled(state["request"])
+        if known.used:
+            count = len(known.used)
+            # The exact memories that go into the prompt, so the HUD can show them.
+            step_event(
+                state,
+                "tool.result",
+                f"Recalled {count} {'memory' if count == 1 else 'memories'}",
+                {
+                    "stage": "memory",
+                    "tokens": known.tokens,
+                    "memories": [
+                        {
+                            "fact": m.fact,
+                            "note": m.note_path,
+                            "source": m.source,
+                            "trust": m.trust,
+                        }
+                        for m in known.used
+                    ],
+                },
+            )
+        intent = await route(
+            deps.model, state["request"], run_id=state["run_id"], context=known.text
+        )
         step_event(
             state,
             "step.finished",
@@ -87,13 +148,19 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         intent = state["intent"]
         assert intent is not None
         step_event(state, "step.started", "Planning", {"stage": "plan"})
+        known = await recalled(state["request"])
         plan = await make_plan(
-            deps.model, deps.registry, state["run_id"], state["request"], intent
+            deps.model,
+            deps.registry,
+            state["run_id"],
+            state["request"],
+            intent,
+            context=known.text,
         )
         step_event(
             state,
             "step.finished",
-            f"Plan ready: {len(plan.steps)} steps",
+            f"Plan ready: {len(plan.steps)} step{'' if len(plan.steps) == 1 else 's'}",
             {"stage": "plan", "steps": len(plan.steps)},
         )
         return {"plan": plan}
@@ -103,18 +170,28 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         assert plan is not None
         index = state["step_index"]
         step = plan.steps[index]
-        if not needs_approval(step, state["granted_tools"]):
+        granted_tools = deps.grants.get(state["run_id"], [])
+        if not needs_approval(step, granted_tools):
             return {"approved": True}
 
         request = ApprovalRequest(
-            action=step.tool, detail=str(step.args), risk=step.risk
+            approval_id=new_event_id(),
+            action=step.tool,
+            detail=_describe(deps.registry, step),
+            risk=step.risk,
         )
         # Nothing observable happens before this line: on resume the node runs again.
         grant = interrupt(
             {"request": request.model_dump(mode="json"), "step_index": index}
         )
-        allowed, granted = apply_grant(grant, step, state["granted_tools"])
-        update: dict[str, Any] = {"approved": allowed, "granted_tools": granted}
+        allowed, granted = apply_grant(
+            grant,
+            step,
+            granted_tools,
+            grantable=_grantable(deps.registry, step),
+        )
+        deps.grants[state["run_id"]] = granted
+        update: dict[str, Any] = {"approved": allowed}
         if not allowed:
             update["results"] = [
                 {"step": index, "tool": step.tool, "status": "denied", "result": {}}
@@ -137,7 +214,14 @@ def build_graph(deps: GraphDeps, checkpointer: AsyncSqliteSaver):
         if step.tool not in deps.registry:
             result: dict[str, Any] = {"error": f"no tool named '{step.tool}'"}
         else:
-            ctx = HaloContext(state["run_id"], deps.emit, deps.model)
+            ctx = HaloContext(
+                state["run_id"],
+                deps.emit,
+                deps.model,
+                # Only a step that needed a yes carries one; a low-risk step is never "approved".
+                approved=state["approved"] and step.risk != "low",
+                memory=deps.memory,
+            )
             try:
                 result = await deps.registry.get(step.tool).module.run(ctx, step.args)
             except ValueError as exc:  # bad arguments from the model are a step error

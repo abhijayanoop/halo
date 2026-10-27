@@ -3,6 +3,7 @@
 from collections.abc import Callable
 
 from halo.core.contracts import HaloEvent
+from halo.memory.store import MemoryStore
 from halo.models.client import ModelClient
 
 
@@ -15,10 +16,18 @@ class HaloContext:
         run_id: str,
         emit: Callable[[HaloEvent], None],
         model: ModelClient,
+        *,
+        approved: bool = False,
+        memory: MemoryStore | None = None,
     ) -> None:
         self.run_id = run_id
         self._sink = emit
         self.model = model
+        # Set by the executor once the gate has let this step through; a skill
+        # may rely on it, and nothing a model returns can change it.
+        self.approved = approved
+        # The vault, for the memory skills. None when memory is not set up.
+        self.memory = memory
 
     def emit(self, event: HaloEvent) -> None:
         self._sink(event)

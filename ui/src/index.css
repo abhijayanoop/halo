@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+/* A quiet, dark instrument. Flat near-black surfaces, a 1px hairline for edges,
+   one typeface for text and one for numbers. Colour is reserved for state: it
+   comes from the mood or the risk, through --ring, and nowhere else. */
+@theme {
+  --font-sans:
+    "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "Cascadia Code", "JetBrains Mono", ui-monospace, monospace;
+  --color-bg: #0b0c0f;
+  --color-raised: #121317;
+  --color-raised-2: #181a20;
+  --color-line: #23252c;
+  --color-ink: #e9eaee;
+  --color-ink-dim: #8b8f9a;
+  --color-ink-faint: #555a66;
+}
+
+/* Dark, thin scrollbars that belong to the window, not the system white ones. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #2c2f38 transparent;
+}
+
+html,
+body,
+#root {
+  color-scheme: dark;
+  margin: 0;
+  height: 100%;
+  background: var(--color-bg);
+  overflow: hidden;
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "tnum", "cv11";
+}
+
+/* The window and the cards: flat, with a hairline. The edge picks up a little of
+   --ring (the state colour) so the state shows without any glow. */
+@utility plate {
+  background: var(--color-bg);
+  border: 1px solid
+    color-mix(in srgb, var(--ring, #9aa3b2) 22%, var(--color-line));
+  transition: border-color 0.3s ease;
+}
+
+/* A raised tile inside a plate: a step, a proposal. */
+@utility tile {
+  background: var(--color-raised);
+  border: 1px solid var(--color-line);
+}
+
+/* A small key cap, for the Enter and Esc hints. */
+@utility keycap {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.08);
+  border: 1px solid rgb(255 255 255 / 0.1);
+}

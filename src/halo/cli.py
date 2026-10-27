@@ -88,7 +88,10 @@ async def run_request(
                 await queue.join()  # let the approval card print before asking
                 grant = await ask(outcome.approval)
                 outcome = await halo.runner.resume(
-                    outcome.run_id, ApprovalDecision(grant=grant)
+                    outcome.run_id,
+                    ApprovalDecision(
+                        approval_id=outcome.approval.approval_id, grant=grant
+                    ),
                 )
             await queue.join()
         finally:

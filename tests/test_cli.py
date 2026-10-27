@@ -88,9 +88,8 @@ async def test_a_paused_run_asks_and_continues_on_allow(halo_cm_factory) -> None
     )
     assert [r.action for r in asked] == ["app.open"]
     assert "Finished" in out.getvalue()
-    assert (
-        code == 1
-    )  # Spotify is not launchable yet, so the run ends in error, honestly
+    assert code == 0
+    assert len(halo_cm_factory.spawned) == 1
 
 
 async def test_deny_exits_nonzero_without_running_the_tool(halo_cm_factory) -> None:

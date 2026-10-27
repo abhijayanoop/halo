@@ -1,13 +1,18 @@
-"""app.open: launch an allowlisted app.
+"""app.open: launch an app.
 
-Only apps in the config allowlist are ever launched here. Nothing in `args` can
-widen that: approval for other apps is the executor's job, not this skill's.
+Allowlisted apps open straight away. Any other app opens only when the
+executor has set `ctx.approved` after the user said yes; nothing in `args`
+can set it. The name of an approved app is validated and launched as an
+argument list, never through a shell.
 """
 
 import asyncio
+import os
+import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from halo.config import AppEntry, load_config
 from halo.core.contracts import RiskLevel, RunContext
@@ -17,6 +22,12 @@ from halo.skills.errors import SkillArgsError
 
 def _normalize(name: str) -> str:
     return " ".join(name.casefold().split())
+
+
+# Plain app names only: no path separators, quotes, operators or leading dashes.
+_SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}")
+
+_WINDOWS_COMMON = {"notepad": "notepad", "calculator": "calc", "paint": "mspaint"}
 
 
 def _app_name(args: dict) -> str:
@@ -34,15 +45,57 @@ def _find_app(name: str) -> tuple[str, AppEntry] | None:
     return None
 
 
+def describe(args: dict) -> str:
+    """What the approval card shows: only the validated app name, so extra keys a
+    model adds can never make the card read like a different app."""
+    return str({"app": _app_name(args)})
+
+
+def grantable(args: dict) -> bool:
+    """Only an allowlisted app can be covered by "always for this task"; every
+    other app needs its own yes."""
+    try:
+        return _find_app(_app_name(args)) is not None
+    except SkillArgsError:
+        return False
+
+
 def assess_risk(args: dict) -> RiskLevel:
     """Allowlisted apps are low risk; anything else needs an approval."""
     return "low" if _find_app(_app_name(args)) else "medium"
 
 
+def approved_argv(name: str) -> list[str]:
+    """The launch command for an approved app that is not on the allowlist.
+    `name` must already have passed _SAFE_NAME."""
+    if sys.platform == "darwin":
+        return ["open", "-a", name]
+    if sys.platform == "win32":
+        return [_WINDOWS_COMMON.get(_normalize(name), name)]
+    return [name]
+
+
+def _find_exe(name: str) -> str | None:
+    """Look the program up on PATH only. On Windows `shutil.which` also tries the
+    current folder first, so a planted `code.cmd` there would win; each PATH
+    entry is searched on its own and a hit must really live in that entry."""
+    cwd = Path.cwd().resolve()
+    for entry in os.environ.get("PATH", "").split(os.pathsep):
+        if not entry or entry == os.curdir:
+            continue
+        folder = Path(entry).resolve()
+        if folder == cwd:
+            continue
+        found = shutil.which(name, path=entry)
+        if found and Path(found).resolve().parent == folder:
+            return str(Path(found).resolve())
+    return None
+
+
 async def _spawn(argv: list[str]) -> None:
     """Start a detached process. Raises FileNotFoundError if the program is
     not installed."""
-    exe = shutil.which(argv[0])
+    exe = _find_exe(argv[0])
     if exe is None:
         raise FileNotFoundError(argv[0])
     kwargs: dict = {}
@@ -65,15 +118,22 @@ async def _spawn(argv: list[str]) -> None:
 async def run(ctx: RunContext, args: dict) -> dict:
     name = _app_name(args)
     found = _find_app(name)
-    if found is None:
+    approved = getattr(ctx, "approved", False) is True  # set by the executor only
+    if found is None and not approved:
         return {"opened": False, "app": name, "needs_approval": True}
+    if found is None and not _SAFE_NAME.fullmatch(name):
+        return {
+            "opened": False,
+            "app": name[:64],
+            "error": "that doesn't look like an app name I can open safely",
+        }
 
-    key, entry = found
+    key = found[0] if found else name
     ctx.emit(
         make_event(ctx.run_id, "tool.called", f"Opening {key}", payload={"app": key})
     )
 
-    argv = entry.command.get(sys.platform)
+    argv = found[1].command.get(sys.platform) if found else approved_argv(name)
     if argv is None:
         result = {
             "opened": False,
@@ -84,6 +144,12 @@ async def run(ctx: RunContext, args: dict) -> dict:
         try:
             await _spawn(argv)
             result = {"opened": True, "app": key}
+        except FileNotFoundError:
+            result = {
+                "opened": False,
+                "app": key,
+                "error": f"I couldn't find an app called {key} on this computer",
+            }
         except OSError as exc:
             result = {"opened": False, "app": key, "error": f"could not launch: {exc}"}
 

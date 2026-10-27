@@ -80,9 +80,14 @@ def test_step_and_skillmanifest_reject_invalid_risk() -> None:
 
 @pytest.mark.parametrize("grant", ["allow_once", "deny", "always_for_task"])
 def test_approvaldecision_accepts_valid_grants(grant: ApprovalGrant) -> None:
-    assert ApprovalDecision(grant=grant).grant == grant
+    assert ApprovalDecision(approval_id="a1", grant=grant).grant == grant
 
 
 def test_approvaldecision_rejects_invalid_grant() -> None:
     with pytest.raises(ValidationError):
-        ApprovalDecision(grant="always_forever")  # type: ignore[arg-type]
+        ApprovalDecision(approval_id="a1", grant="always_forever")  # type: ignore[arg-type]
+
+
+def test_approvaldecision_requires_an_approval_id() -> None:
+    with pytest.raises(ValidationError):
+        ApprovalDecision(grant="allow_once")  # type: ignore[call-arg]

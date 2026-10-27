@@ -75,3 +75,36 @@ One entry per spike: date, question, method, result with numbers, decision.
 **Decisions.**
 - Nano tool calls >= 90%: **yes**, Nano does tool calls.
 - JSON-schema output reliable on Nano: **yes** in `json_schema` mode.
+
+---
+
+## 2026-10-27 — Tool calling and JSON-schema validity (profile `token-factory`)
+
+**Question.** Does each Nemotron tier produce valid tool calls and valid JSON-schema output at >= 90%, and at what latency and cost?
+
+**Method.** `spikes/tool_calling_probe.py`: per tier, 10 tool-call prompts (3 tools) and 10 router prompts against the `Intent` schema, structured_mode `json_schema`, first attempt only (no retry), one call at a time. 60 calls total, hard-capped.
+
+| tier | model id | tool call valid | tool call correct | JSON valid | JSON correct | median latency | tokens in/out | cost |
+|---|---|---|---|---|---|---|---|---|
+| nano | `nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 1219 ms | 7941/3319 | price unknown |
+| super | `nvidia/nemotron-3-super-120b-a12b` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 1243 ms | 8771/1755 | price unknown |
+| ultra | `nvidia/Nemotron-3-Ultra-550b-a55b` | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 10/10 (100%) | 971 ms | 8291/2200 | price unknown |
+
+**Decisions.**
+- Nano tool calls >= 90%: **yes**, Nano does tool calls.
+- JSON-schema output reliable on Nano: **yes** in `json_schema` mode.
+
+## 2026-10-27 — router score and thinking mode on Nebius Token Factory
+
+**Question.** On the submission profile (Nemotron on Nebius Token Factory), how accurate and fast is the Nano router on the 20-case golden set, and does turning thinking off (`chat_template_kwargs.enable_thinking=false`) help?
+
+**Method.** Live, profile `token-factory`, Nano first and Super on low confidence (the shipped cascade), 20 utterances from `evals/router_golden.yaml`, one call at a time. Plus 3 probe calls per setting for latency.
+
+| setting | router score | mean / max per request |
+|---|---|---|
+| shipped config (thinking default) | **20/20** | 1.7 s / 10.5 s |
+| thinking off | 18/20 | 0.8 s / 2.3 s |
+
+With thinking off the two misses were the ambiguous cases (a general programming question routed to `code.task`, and "what should I work on today?" routed to `code.task` instead of `work.start`).
+
+**Decision.** Keep thinking on for Token Factory (no `extra_body`). Thinking off is about twice as fast but dropped two ambiguous cases; the shipped number is 20/20. The dev profile still sends thinking off (it scored 20/20 there and was much slower with it on). The tool-calling spike above (60/60 on all three tiers) ran on this profile too. Costs are unknown until prices are added to the config.

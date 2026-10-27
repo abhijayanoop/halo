@@ -5,6 +5,7 @@ The runner owns the run-level events: `run.started`, `approval.requested`,
 re-executed on resume, so they never emit those.
 """
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -22,6 +23,10 @@ RunState = Literal["finished", "paused", "failed"]
 ResultStatus = Literal["ok", "denied", "error"]
 
 
+class ApprovalMismatch(ValueError):
+    """The decision answers a different approval than the one now pending."""
+
+
 @dataclass
 class RunOutcome:
     run_id: str
@@ -30,6 +35,19 @@ class RunOutcome:
     results: list[dict[str, Any]] = field(default_factory=list)
     approval: ApprovalRequest | None = None
     error: str | None = None
+
+
+def approval_requested_event(
+    run_id: str, request: ApprovalRequest, step_index: int
+) -> HaloEvent:
+    """The event that puts a permission card on screen. One builder, so a card
+    restored after a restart is the same as one asked live."""
+    return make_event(
+        run_id,
+        "approval.requested",
+        f"Can I run {request.action}?",
+        payload={**request.model_dump(mode="json"), "step_index": step_index},
+    )
 
 
 def _failure_reason(exc: Exception) -> str:
@@ -70,6 +88,8 @@ class HaloRunner:
     def __init__(self, graph: Any, emit: Callable[[HaloEvent], None]) -> None:
         self._graph = graph
         self._emit = emit
+        self._tasks: dict[str, asyncio.Task[Any]] = {}  # runs being driven right now
+        self._stopping: set[str] = set()
 
     @staticmethod
     def _config(run_id: str) -> dict[str, Any]:
@@ -85,21 +105,66 @@ class HaloRunner:
         return await self._drive(run_id, initial_state(run_id, request))
 
     async def resume(self, run_id: str, decision: ApprovalDecision) -> RunOutcome:
-        if await self.pending_approval(run_id) is None:
+        pending = await self.pending_approval(run_id)
+        if pending is None:
             raise ValueError(f"run {run_id} is not waiting for approval")
+        if decision.approval_id != pending.approval_id:
+            raise ApprovalMismatch(
+                f"run {run_id} is waiting on a different approval than the one answered"
+            )
         self._emit(
             make_event(
                 run_id,
                 "approval.resolved",
                 "Decision received",
-                payload={"grant": decision.grant},
+                payload={"grant": decision.grant, "approval_id": pending.approval_id},
             )
         )
         return await self._drive(run_id, Command(resume=decision.grant))
 
     async def retry(self, run_id: str) -> RunOutcome:
-        """Continue a failed run from its last checkpoint."""
+        """Continue a failed run from its last checkpoint. It announces itself with
+        a `run.started` (marked `retry`), so listeners drop the old failure."""
+        snapshot = await self._graph.aget_state(self._config(run_id))
+        request = str(snapshot.values.get("request") or "")
+        self._emit(
+            make_event(
+                run_id,
+                "run.started",
+                request[:80] or "Retrying",
+                payload={"request": request, "retry": True},
+            )
+        )
         return await self._drive(run_id, None)
+
+    async def stop(self, run_id: str) -> bool:
+        """End a run the user no longer wants. A working run is cancelled; a run
+        waiting on a card is denied. Both finish with `run.finished` (status
+        "denied", `stopped`), so no new event type is needed. False if the run is
+        neither working nor waiting."""
+        task = self._tasks.get(run_id)
+        if task is not None and not task.done():
+            self._stopping.add(run_id)
+            task.cancel()
+            return True
+        pending = await self.pending_approval(run_id)
+        if pending is None:
+            return False
+        await self.resume(
+            run_id, ApprovalDecision(approval_id=pending.approval_id, grant="deny")
+        )
+        return True
+
+    def _stopped(self, run_id: str) -> RunOutcome:
+        self._emit(
+            make_event(
+                run_id,
+                "run.finished",
+                "Stopped",
+                payload={"status": "denied", "stopped": True, "results": []},
+            )
+        )
+        return RunOutcome(run_id, "finished", result_status="denied")
 
     async def pending_approval(self, run_id: str) -> ApprovalRequest | None:
         snapshot = await self._graph.aget_state(self._config(run_id))
@@ -108,9 +173,45 @@ class HaloRunner:
                 return ApprovalRequest.model_validate(interruption.value["request"])
         return None
 
+    async def paused_approvals(self, limit: int = 50) -> list[HaloEvent]:
+        """An `approval.requested` event for every run that is waiting for a
+        yes in the checkpoint, newest runs first. After a restart this is how a
+        new HUD learns about cards that were open when Halo quit."""
+        # Collect the run ids first: querying a run while the listing is still open
+        # would wait on the checkpointer's own lock forever.
+        # A run makes about ten checkpoints and a pause is its newest, so the latest
+        # `limit * 10` checkpoints cover the latest `limit` runs.
+        run_ids: list[str] = []
+        async for item in self._graph.checkpointer.alist(None, limit=limit * 10):
+            run_id = str(item.config["configurable"]["thread_id"])
+            if run_id not in run_ids:
+                run_ids.append(run_id)
+        found: list[HaloEvent] = []
+        for run_id in run_ids:
+            snapshot = await self._graph.aget_state(self._config(run_id))
+            for task in snapshot.tasks:
+                for interruption in task.interrupts:
+                    value = interruption.value
+                    request = ApprovalRequest.model_validate(value["request"])
+                    found.append(
+                        approval_requested_event(run_id, request, value["step_index"])
+                    )
+                    break
+        return found
+
     async def _drive(self, run_id: str, graph_input: Any) -> RunOutcome:
+        task = asyncio.current_task()
+        if task is not None:
+            self._tasks[run_id] = task
         try:
             result = await self._graph.ainvoke(graph_input, self._config(run_id))
+        except asyncio.CancelledError:
+            if run_id not in self._stopping:
+                raise  # cancelled by shutdown, not by a Stop
+            self._stopping.discard(run_id)
+            if task is not None:
+                task.uncancel()
+            return self._stopped(run_id)
         except Exception as exc:
             logger.exception("run %s failed", run_id)
             reason = _failure_reason(exc)
@@ -123,21 +224,13 @@ class HaloRunner:
                 )
             )
             return RunOutcome(run_id, "failed", error=reason)
+        finally:
+            self._tasks.pop(run_id, None)
 
         if interruptions := result.get("__interrupt__"):
             value = interruptions[0].value
             request = ApprovalRequest.model_validate(value["request"])
-            self._emit(
-                make_event(
-                    run_id,
-                    "approval.requested",
-                    f"Can I run {request.action}?",
-                    payload={
-                        **request.model_dump(mode="json"),
-                        "step_index": value["step_index"],
-                    },
-                )
-            )
+            self._emit(approval_requested_event(run_id, request, value["step_index"]))
             return RunOutcome(run_id, "paused", approval=request)
 
         results = result["results"]
