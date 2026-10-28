@@ -30,12 +30,19 @@ _Last updated: 2026-10-28. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
   backslash-n" routed to `code.task`; the brief (edited down from 10 criteria to 5) was approved; Claude Code wrote `test_token_count.py` (8 tests) and the one-line fix in a
   worktree; Halo's own test run passed; Ultra said pass with no issues; the merge landed as two local commits on `main` (not pushed) and the worktree and branch were removed.
   Cost: Nano 0.008 + Super 0.113 + Ultra 0.233 + Claude Code 26.44 = 26.79 rupees. The worker's permission card was NOT seen on screen (no HUD was attached): it timed out and was
-  denied after 5 minutes, and the worker finished without running tests itself. The HUD cards have not been clicked in a real window yet.
+  denied after 5 minutes, and the worker finished without running tests itself.
+- **Live HUD run, 2026-10-28 (`uv run halo-app`, the user clicked everything):** "add one-line docstrings to count_words, count_tokens and analyze_text ... remove the stray
+  semicolon" in `ai-eng-prep`: the brief card (8 criteria) was approved 9 s after it appeared; the worker made five tool calls (Read, Bash x3, Edit) and finished at 14.39 rupees;
+  Halo's own test run passed; Ultra said pass; the user clicked Merge on the result card and it landed as `ca79294` (+ a save commit) on the user's local `main`, touching only
+  `token_count.py` (3 docstrings, the `;` removed). Total 14.69 rupees. The user reported that it works. **No worker permission card appeared** (Claude Code ran `git log` and
+  the test command without asking), so that card has still only been seen as an event and in tests, not clicked on screen. Whether Enter on the result card does nothing was not
+  separately checked.
 - Tests: 905 Python (`-m "not live"`), 200 UI; ruff, pyright, tsc and the UI build are clean.
 
 ## Next
-- A real HUD run by hand (`uv run halo-app`): brief card, the worker's permission card and the result card on screen, then Merge. This is the real "Done when" check.
-- Fix on branch `fix/worker-powershell-policy` (PR pending): Claude Code's `PowerShell` tool is now treated like `Bash` in the tool policy.
+- See a worker permission card on screen once (ask the worker for something off the allowlist, such as a file write outside the worktree or `git fetch`), and check that Enter
+  on the result card does nothing.
+- Done: Claude Code's `PowerShell` tool is treated like `Bash` in the tool policy (PR #15).
 - Then PLAN Day 5, security + voice (the real Reader, policy engine, egress ledger, `web.read`), life skills, evals (the cascade table is a Day 7 item), see docs/PLAN.md.
 - Day 3 live check (2026-10-27) passed: chat, recall with `obsidian://` links, the vault watcher, and the Notepad permission card.
 
