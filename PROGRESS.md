@@ -37,6 +37,10 @@ _Last updated: 2026-10-28. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
   `token_count.py` (3 docstrings, the `;` removed). Total 14.69 rupees. The user reported that it works. **No worker permission card appeared** (Claude Code ran `git log` and
   the test command without asking), so that card has still only been seen as an event and in tests, not clicked on screen. Whether Enter on the result card does nothing was not
   separately checked.
+- **Router golden set re-run after the `code.task` description changed (2026-10-28, Token Factory, live Nano):** 19/20 (the test's bar is 18); latency mean 1.18 s, max 2.15 s per
+  route; all 3 `code.task` cases routed correctly. One miss: "what's the difference between a mutex and a semaphore?" (expected `chat`) went to `code.task`. Not attributed: it is
+  one run of a non-deterministic model, and the earlier 20/20 (mean 1.7 s, max 10.5 s) used the old wording, so whether the new wording caused it is unknown (an A/B with the old
+  description would tell). Cost was not measured: the run's script counted cost events, and routing without a run id emits none.
 - Tests: 905 Python (`-m "not live"`), 200 UI; ruff, pyright, tsc and the UI build are clean.
 
 ## Next
@@ -70,6 +74,9 @@ _Last updated: 2026-10-28. Day numbers are the user's: Day 1 = Oct 10 (scaffold,
 - `python -m halo.api.server` does not serve the HUD page (404 at `/`), so cards cannot be clicked from it; a second launch while one is running overwrites `~/.halo/api-token`,
   so the running server's token no longer matches. `/stop` and `/memory/*` are not in the token-protected set (only `/run`, `/approve`, `/code/decision` and `/events` are).
 - Symlink protections (a link out of the vault is not followed) are tested but skipped on this Windows account; they run on Linux CI.
+- `load_config()` does not read `.env`; the entry points (`halo-app`, the API server, the CLI) call `load_env()` first. A script that builds a model client must call `load_env()`
+  too, or it will report the key as missing even when `.env` has it. The live golden-set test runs under the global 30 s timeout and its 20 calls can exceed it (it did once); pass `--timeout=300` or use a script.
+- The router can send a general programming question to `code.task` (1 miss in the 20-case golden set); re-run the set after any change to a skill description.
 - The `NVIDIA_API_KEY` value was pasted into a chat on 2026-10-28; regenerate it if it was a real key.
 
 ## How to run
